@@ -1,11 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import {
   FacebookIcon,
   InstagramIcon,
-  LeafIcon,
   MenuIcon,
   XIcon,
 } from "@/components/icons";
@@ -22,14 +22,16 @@ export default function Navbar() {
 
   return (
     <header className="sticky top-0 z-50 border-b border-brand-700/10 bg-cream/90 backdrop-blur">
-      <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-6 py-4 lg:px-8">
-        <Link href="/" className="flex items-center gap-3">
-          <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-brand-100 text-brand-700">
-            <LeafIcon className="size-5" />
-          </span>
-          <span className="font-serif text-lg tracking-wide text-ink">
-            Awele Wellness
-          </span>
+      <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-6 py-3 lg:px-8">
+        <Link href="/" className="flex items-center">
+          <Image
+            src="/assets/navbar/awele-logo-trimmed.png"
+            alt="Awele Wellness"
+            width={531}
+            height={560}
+            priority
+            className="h-20 w-auto"
+          />
         </Link>
 
         <nav className="hidden items-center gap-8 md:flex">
