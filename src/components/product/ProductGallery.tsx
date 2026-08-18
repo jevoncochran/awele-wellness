@@ -1,7 +1,23 @@
+import Image from "next/image";
 import { LeafIcon } from "@/components/icons";
 import type { Product } from "@/lib/products";
 
 export default function ProductGallery({ product }: { product: Product }) {
+  if (product.image) {
+    return (
+      <div className="relative aspect-[4/5] overflow-hidden rounded-3xl shadow-xl shadow-brand-900/10">
+        <Image
+          src={product.image}
+          alt={`${product.name} bar soap`}
+          fill
+          priority
+          sizes="(min-width: 1024px) 40vw, 100vw"
+          className="object-cover"
+        />
+      </div>
+    );
+  }
+
   return (
     <div
       className={`relative flex aspect-[4/5] items-center justify-center overflow-hidden rounded-3xl bg-gradient-to-br p-10 shadow-xl shadow-brand-900/10 ${product.gradient}`}

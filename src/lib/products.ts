@@ -4,89 +4,76 @@ export type Product = {
   tagline: string;
   price: number;
   gradient: string;
+  image?: string;
   description: string;
   ingredients: string[];
 };
 
 export const products: Product[] = [
   {
-    slug: "lavender-lemongrass",
-    name: "Lavender Lemongrass",
-    tagline: "Calming & Refreshing",
-    price: 9.5,
-    gradient: "from-purple-200 via-purple-100 to-lime-100",
-    description:
-      "A calming blend of lavender and bright lemongrass, crafted to soothe your senses and soften your skin.",
-    ingredients: ["Lavender", "Lemongrass"],
-  },
-  {
-    slug: "calming-herbal",
-    name: "Calming Herbal",
-    tagline: "Soothing & Grounding",
+    slug: "goat-milk",
+    name: "Goat Milk",
+    tagline: "Nourishing & Moisturizing",
     price: 9.25,
-    gradient: "from-emerald-200 via-emerald-100 to-lime-50",
+    gradient: "from-amber-100 via-orange-50 to-yellow-50",
+    image: "/assets/images/shop/goat_milk.png",
     description:
-      "A grounding herbal bar with rosemary, mint, and green clay to soothe the skin and calm the mind.",
-    ingredients: ["Rosemary", "Mint", "Green Clay"],
+      "A creamy, moisturizing bar made with real goat milk to nourish and soothe the skin.",
+    ingredients: ["Goat Milk"],
   },
   {
-    slug: "charcoal-cleanse",
-    name: "Charcoal Cleanse",
-    tagline: "Detoxifying & Purifying",
+    slug: "black-soap-charcoal",
+    name: "Black Soap Charcoal",
+    tagline: "Deep Cleansing & Purifying",
     price: 9.25,
     gradient: "from-neutral-800 via-neutral-700 to-neutral-600",
+    image: "/assets/images/shop/black_soap_charcoal.png",
     description:
-      "A deep-cleansing bar with activated charcoal, tea tree, and eucalyptus to purify and refresh.",
-    ingredients: ["Activated Charcoal", "Tea Tree", "Eucalyptus"],
+      "A traditional black soap bar with activated charcoal, crafted to deeply cleanse and purify the skin.",
+    ingredients: ["Activated Charcoal"],
   },
   {
-    slug: "turmeric-glow",
-    name: "Turmeric Glow",
-    tagline: "Brightening & Radiant",
+    slug: "peppermint",
+    name: "Peppermint",
+    tagline: "Cooling & Energizing",
     price: 9.25,
-    gradient: "from-amber-300 via-orange-200 to-yellow-100",
+    gradient: "from-teal-100 via-emerald-50 to-cyan-50",
+    image: "/assets/images/shop/peppermint.png",
     description:
-      "A brightening bar infused with turmeric, ginger, and orange peel for naturally radiant-looking skin.",
-    ingredients: ["Turmeric", "Ginger", "Orange Peel"],
+      "A crisp, cooling bar infused with peppermint to energize the senses and refresh the skin.",
+    ingredients: ["Peppermint"],
   },
   {
-    slug: "oat-honey",
-    name: "Oat & Honey",
-    tagline: "Nourishing & Gentle",
-    price: 9.0,
-    gradient: "from-amber-100 via-yellow-50 to-orange-50",
+    slug: "tea-tree-mint",
+    name: "Tea Tree Mint",
+    tagline: "Clarifying & Refreshing",
+    price: 9.25,
+    gradient: "from-emerald-100 via-teal-50 to-lime-50",
+    image: "/assets/images/shop/tea_tree_mint.png",
     description:
-      "A gentle, nourishing bar with oats and honey to soften and comfort sensitive skin.",
-    ingredients: ["Oats", "Honey"],
+      "A clarifying blend of tea tree and mint, crafted to refresh the skin and support a healthy-looking complexion.",
+    ingredients: ["Tea Tree", "Mint"],
   },
   {
-    slug: "eucalyptus-mint",
-    name: "Eucalyptus Mint",
-    tagline: "Cooling & Invigorating",
+    slug: "cherry-almond-pie",
+    name: "Cherry Almond Pie",
+    tagline: "Sweet & Nourishing",
+    price: 9.25,
+    gradient: "from-rose-200 via-red-100 to-orange-50",
+    image: "/assets/images/shop/cherry_almond_pie.png",
+    description:
+      "A sweet, dessert-inspired bar with cherry and almond to nourish and soften the skin.",
+    ingredients: ["Cherry", "Almond"],
+  },
+  {
+    slug: "eucalyptus-aloe",
+    name: "Eucalyptus Aloe",
+    tagline: "Soothing & Refreshing",
     price: 9.25,
     gradient: "from-teal-200 via-emerald-100 to-cyan-50",
+    image: "/assets/images/shop/eucalyptus_aloe.png",
     description:
-      "A cooling, invigorating bar with eucalyptus and mint to awaken the senses.",
-    ingredients: ["Eucalyptus", "Mint"],
-  },
-  {
-    slug: "rose-clay",
-    name: "Rose Clay",
-    tagline: "Softening & Balancing",
-    price: 9.25,
-    gradient: "from-rose-200 via-pink-100 to-rose-50",
-    description:
-      "A softening bar with rose and pink clay to balance and gently polish the skin.",
-    ingredients: ["Rose", "Pink Clay"],
-  },
-  {
-    slug: "healing-herb-blend",
-    name: "Healing Herb Blend",
-    tagline: "Restorative & Soothing",
-    price: 9.25,
-    gradient: "from-lime-200 via-green-100 to-emerald-50",
-    description:
-      "A restorative blend of healing herbs, crafted to soothe and comfort the skin.",
-    ingredients: ["Calendula", "Chamomile", "Rosemary"],
+      "A soothing blend of eucalyptus and aloe vera, crafted to refresh the skin and calm irritation.",
+    ingredients: ["Eucalyptus", "Aloe Vera"],
   },
 ];
