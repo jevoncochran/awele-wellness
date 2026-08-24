@@ -3,12 +3,9 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import {
-  FacebookIcon,
-  InstagramIcon,
-  MenuIcon,
-  XIcon,
-} from "@/components/icons";
+import CartDrawer from "@/components/cart/CartDrawer";
+import { useCart } from "@/components/cart/CartProvider";
+import { MenuIcon, ShoppingBagIcon, XIcon } from "@/components/icons";
 
 const navLinks = [
   { href: "/shop", label: "Shop" },
@@ -19,6 +16,8 @@ const navLinks = [
 
 export default function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isCartOpen, setIsCartOpen] = useState(false);
+  const { itemCount } = useCart();
 
   useEffect(() => {
     if (!isMenuOpen) return;
@@ -56,30 +55,29 @@ export default function Navbar() {
             ))}
           </nav>
 
-          <div className="hidden items-center gap-2 md:flex">
-            <a
-              href="#"
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="Instagram"
-              className="flex size-9 items-center justify-center rounded-full text-ink transition-colors hover:bg-brand-100 hover:text-brand-700"
-            >
-              <InstagramIcon className="size-5" />
-            </a>
-            <a
-              href="#"
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="Facebook"
-              className="flex size-9 items-center justify-center rounded-full text-ink transition-colors hover:bg-brand-100 hover:text-brand-700"
-            >
-              <FacebookIcon className="size-5" />
-            </a>
-          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setIsMenuOpen(false);
+              setIsCartOpen(true);
+            }}
+            aria-label={`Cart, ${itemCount} item${itemCount === 1 ? "" : "s"}`}
+            className="relative flex size-9 items-center justify-center rounded-full text-ink transition-colors hover:bg-brand-100 hover:text-brand-700"
+          >
+            <ShoppingBagIcon className="size-5" />
+            {itemCount > 0 && (
+              <span className="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-brand-700 text-[10px] font-bold text-cream">
+                {itemCount > 9 ? "9+" : itemCount}
+              </span>
+            )}
+          </button>
 
           <button
             type="button"
-            onClick={() => setIsMenuOpen((open) => !open)}
+            onClick={() => {
+              setIsCartOpen(false);
+              setIsMenuOpen((open) => !open);
+            }}
             className="flex size-10 items-center justify-center rounded-full text-ink md:hidden"
             aria-expanded={isMenuOpen}
             aria-label="Toggle navigation menu"
@@ -109,6 +107,8 @@ export default function Navbar() {
           </nav>
         </div>
       )}
+
+      <CartDrawer open={isCartOpen} onClose={() => setIsCartOpen(false)} />
     </>
   );
 }

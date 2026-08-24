@@ -2,6 +2,10 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import {
+  MAX_QUANTITY_PER_ITEM,
+  useCart,
+} from "@/components/cart/CartProvider";
 import { ArrowRightIcon, HeartIcon, LeafIcon, TruckIcon } from "@/components/icons";
 import type { Product } from "@/lib/products";
 
@@ -12,6 +16,7 @@ const trustPoints = [
 ];
 
 export default function ProductDetails({ product }: { product: Product }) {
+  const { addItem } = useCart();
   const [quantity, setQuantity] = useState(1);
   const [justAdded, setJustAdded] = useState(false);
 
@@ -74,7 +79,9 @@ export default function ProductDetails({ product }: { product: Product }) {
           </span>
           <button
             type="button"
-            onClick={() => setQuantity((q) => q + 1)}
+            onClick={() =>
+              setQuantity((q) => Math.min(MAX_QUANTITY_PER_ITEM, q + 1))
+            }
             className="flex size-11 items-center justify-center text-lg text-ink transition-colors hover:text-brand-700"
             aria-label="Increase quantity"
           >
@@ -84,7 +91,10 @@ export default function ProductDetails({ product }: { product: Product }) {
 
         <button
           type="button"
-          onClick={() => setJustAdded(true)}
+          onClick={() => {
+            addItem(product.slug, quantity);
+            setJustAdded(true);
+          }}
           className="min-w-[200px] flex-1 rounded-full bg-brand-700 px-8 py-3.5 text-sm font-semibold text-cream transition-colors hover:bg-brand-800"
         >
           {justAdded ? "Added to Cart ✓" : "Add to Cart"}
