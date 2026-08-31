@@ -88,7 +88,11 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  let body: { items?: CartLineInput[]; shipping?: ShippingInput };
+  let body: {
+    items?: CartLineInput[];
+    shipping?: ShippingInput;
+    email?: unknown;
+  };
   try {
     body = await request.json();
   } catch {
@@ -96,10 +100,12 @@ export async function POST(request: NextRequest) {
   }
 
   const rawItems = Array.isArray(body.items) ? body.items : [];
+  const email = typeof body.email === "string" ? body.email.trim() : "";
 
   let subtotalCents = 0;
   let totalBars = 0;
   const orderLines: string[] = [];
+  const orderLineItems: { slug: string; quantity: number }[] = [];
 
   for (const rawItem of rawItems) {
     const product = products.find((p) => p.slug === rawItem.slug);
@@ -115,6 +121,7 @@ export async function POST(request: NextRequest) {
     subtotalCents += Math.round(product.price * 100) * quantity;
     totalBars += quantity;
     orderLines.push(`${product.name} x${quantity}`);
+    orderLineItems.push({ slug: product.slug, quantity });
   }
 
   if (totalBars === 0) {
@@ -133,6 +140,11 @@ export async function POST(request: NextRequest) {
       orderItemsSummary.slice(0, MAX_METADATA_VALUE_LENGTH - 1) + "…";
   }
 
+  // Structured line items for re-resolving full product details later (e.g.
+  // in the webhook, to build the order confirmation email) without having
+  // to parse the human-readable order_items string back apart.
+  const orderItemsJson = JSON.stringify(orderLineItems);
+
   const stripe = new Stripe(secretKey);
 
   try {
@@ -141,9 +153,13 @@ export async function POST(request: NextRequest) {
       currency: "usd",
       payment_method_types: ["card", "cashapp"],
       shipping: buildShippingParam(body.shipping),
+      receipt_email: email || undefined,
       metadata: {
         order_items: orderItemsSummary,
         total_bars: String(totalBars),
+        ...(orderItemsJson.length <= MAX_METADATA_VALUE_LENGTH
+          ? { order_items_json: orderItemsJson }
+          : {}),
       },
     });
 

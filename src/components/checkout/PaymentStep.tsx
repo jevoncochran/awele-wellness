@@ -56,6 +56,7 @@ export default function PaymentStep({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         items,
+        email: info.email,
         shipping: {
           name: `${info.firstName} ${info.lastName}`.trim(),
           phone: info.phone || undefined,
