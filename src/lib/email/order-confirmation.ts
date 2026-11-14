@@ -1,3 +1,13 @@
+import {
+  BORDER,
+  BRAND_GREEN,
+  CREAM,
+  INK,
+  INK_MUTED,
+  escapeHtml,
+  formatCurrency,
+} from "@/lib/email/format";
+
 export type OrderConfirmationEmailData = {
   customerName: string;
   orderReference: string;
@@ -18,25 +28,6 @@ export type OrderConfirmationEmailData = {
   };
   paymentMethodLabel: string;
 };
-
-const BRAND_GREEN = "#3e4a2c";
-const CREAM = "#fbf7ee";
-const INK = "#2b2a22";
-const INK_MUTED = "#6b6a5c";
-const BORDER = "#e4e0d3";
-
-function formatCurrency(amount: number): string {
-  return `$${amount.toFixed(2)}`;
-}
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
 
 export function buildOrderConfirmationEmail(
   data: OrderConfirmationEmailData,
