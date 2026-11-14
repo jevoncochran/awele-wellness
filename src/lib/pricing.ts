@@ -73,6 +73,37 @@ export function pricedLinesFromCart(
   }));
 }
 
+// Assumes soaps share one price (true today). If prices ever differ, bundles
+// are priced from the highest unit price and the discount never goes below 0.
+function unitPriceCents(lines: PricedLine[]): number {
+  return Math.max(0, ...lines.map((line) => line.priceCents));
+}
+
+export type BundleHint = {
+  barsToAdd: number;
+  savingsCents: number;
+};
+
+// The nearest number of extra bars that would be cheaper than buying them at
+// list price, and how much extra the customer saves. Looks past bars that
+// wouldn't save anything (e.g. a 5th bar), so 4 bars hints at adding 2.
+export function nextBundleHint(lines: PricedLine[]): BundleHint | null {
+  const barCount = lines.reduce((sum, line) => sum + line.quantity, 0);
+  if (barCount === 0) return null;
+
+  const unitCents = unitPriceCents(lines);
+  const currentCents = bundlePriceCents(unitCents, barCount);
+  const longestDeal = Math.max(...BUNDLE_DEALS.map((deal) => deal.bars));
+
+  for (let barsToAdd = 1; barsToAdd <= longestDeal; barsToAdd++) {
+    const extraCostCents =
+      bundlePriceCents(unitCents, barCount + barsToAdd) - currentCents;
+    const savingsCents = unitCents * barsToAdd - extraCostCents;
+    if (savingsCents > 0) return { barsToAdd, savingsCents };
+  }
+  return null;
+}
+
 // Pure and shared by the cart, checkout summary and the server-side
 // PaymentIntent so the amount shown is always the amount charged.
 export function priceCart(lines: PricedLine[]): CartPricing {
@@ -82,9 +113,7 @@ export function priceCart(lines: PricedLine[]): CartPricing {
     0,
   );
 
-  // Assumes soaps share one price (true today). If prices ever differ, bundles
-  // are priced from the highest unit price and the discount never goes below 0.
-  const unitCents = Math.max(0, ...lines.map((line) => line.priceCents));
+  const unitCents = unitPriceCents(lines);
   const discountCents = Math.max(
     0,
     subtotalCents - bundlePriceCents(unitCents, barCount),

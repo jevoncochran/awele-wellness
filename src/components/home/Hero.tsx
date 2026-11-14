@@ -1,7 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowRightIcon, HeartIcon, LeafIcon } from "@/components/icons";
-import BundleDealsBanner from "@/components/shared/BundleDealsBanner";
 
 const highlights = [
   { icon: LeafIcon, label: "Natural Ingredients" },
@@ -40,9 +39,7 @@ export default function Hero() {
             </Link>
           </div>
 
-          <BundleDealsBanner className="mt-8" />
-
-          <ul className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-3 text-sm text-ink-muted">
+          <ul className="mt-10 flex flex-wrap items-center gap-x-6 gap-y-3 text-sm text-ink-muted">
             {highlights.map(({ icon: Icon, label }, index) => (
               <li key={label} className="flex items-center gap-3">
                 {index > 0 && (
