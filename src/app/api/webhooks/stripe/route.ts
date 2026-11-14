@@ -3,6 +3,7 @@ import { Resend } from "resend";
 import { NextRequest, NextResponse } from "next/server";
 import { products } from "@/lib/products";
 import { buildOrderConfirmationEmail } from "@/lib/email/order-confirmation";
+import { orderAmountsFromMetadata } from "@/lib/pricing";
 
 const DEFAULT_FROM_EMAIL = "Awele Wellness <onboarding@resend.dev>";
 
@@ -80,12 +81,16 @@ async function sendOrderConfirmationEmail(
     return;
   }
 
-  const subtotal = items.reduce(
-    (sum, item) => sum + item.price * item.quantity,
+  const listSubtotalCents = items.reduce(
+    (sum, item) => sum + Math.round(item.price * 100) * item.quantity,
     0,
   );
+  const amounts = orderAmountsFromMetadata(
+    paymentIntent.metadata,
+    listSubtotalCents,
+    paymentIntent.amount,
+  );
   const total = paymentIntent.amount / 100;
-  const shippingCost = Math.max(0, total - subtotal);
 
   let paymentMethod: Stripe.PaymentMethod | null = null;
   if (typeof paymentIntent.payment_method === "string") {
@@ -108,8 +113,9 @@ async function sendOrderConfirmationEmail(
     orderReference: paymentIntent.id,
     orderDate: new Date(paymentIntent.created * 1000),
     items,
-    subtotal,
-    shipping: shippingCost,
+    subtotal: amounts.subtotalCents / 100,
+    discount: amounts.discountCents / 100,
+    shipping: amounts.shippingCents / 100,
     total,
     shippingAddress: {
       name: shipping.name ?? "",

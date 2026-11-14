@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import CartDrawer from "@/components/cart/CartDrawer";
@@ -17,6 +17,10 @@ const navLinks = [
 export default function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
+  // The announcement bar sits above the header until the page is scrolled, so
+  // the mobile menu measures where the header ends instead of assuming a height.
+  const [menuTop, setMenuTop] = useState(0);
+  const headerRef = useRef<HTMLElement>(null);
   const { itemCount } = useCart();
 
   useEffect(() => {
@@ -30,7 +34,10 @@ export default function Navbar() {
 
   return (
     <>
-      <header className="sticky top-0 z-50 border-b border-brand-700/10 bg-cream/90 backdrop-blur">
+      <header
+        ref={headerRef}
+        className="sticky top-0 z-50 border-b border-brand-700/10 bg-cream/90 backdrop-blur"
+      >
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-6 py-3 lg:px-8">
           <Link href="/" className="flex items-center">
             <Image
@@ -76,6 +83,7 @@ export default function Navbar() {
             type="button"
             onClick={() => {
               setIsCartOpen(false);
+              setMenuTop(headerRef.current?.getBoundingClientRect().bottom ?? 0);
               setIsMenuOpen((open) => !open);
             }}
             className="flex size-10 items-center justify-center rounded-full text-ink md:hidden"
@@ -92,7 +100,10 @@ export default function Navbar() {
       </header>
 
       {isMenuOpen && (
-        <div className="fixed inset-0 z-40 overflow-y-auto bg-cream pt-28 md:hidden">
+        <div
+          className="fixed inset-x-0 bottom-0 z-40 overflow-y-auto bg-cream pt-2 md:hidden"
+          style={{ top: menuTop }}
+        >
           <nav className="flex flex-col gap-1 px-6 py-4">
             {navLinks.map((link) => (
               <Link

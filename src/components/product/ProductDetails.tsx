@@ -2,11 +2,10 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import {
-  MAX_QUANTITY_PER_ITEM,
-  useCart,
-} from "@/components/cart/CartProvider";
+import { useCart } from "@/components/cart/CartProvider";
 import { ArrowRightIcon, HeartIcon, LeafIcon, TruckIcon } from "@/components/icons";
+import BundleDealsBanner from "@/components/shared/BundleDealsBanner";
+import { MAX_QUANTITY_PER_ITEM } from "@/lib/checkout-config";
 import type { Product } from "@/lib/products";
 
 const trustPoints = [
@@ -48,6 +47,7 @@ export default function ProductDetails({ product }: { product: Product }) {
       <p className="mt-4 text-2xl font-semibold text-ink">
         ${product.price.toFixed(2)}
       </p>
+      <BundleDealsBanner variant="compact" className="mt-4 max-w-lg" />
 
       <p className="mt-6 max-w-lg leading-relaxed text-ink-muted">
         {product.description}

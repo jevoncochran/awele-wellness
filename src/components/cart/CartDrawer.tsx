@@ -4,7 +4,18 @@ import { useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { resolveCartLines, useCart } from "@/components/cart/CartProvider";
-import { LeafIcon, ShoppingBagIcon, XIcon } from "@/components/icons";
+import {
+  ArrowRightIcon,
+  LeafIcon,
+  ShoppingBagIcon,
+  XIcon,
+} from "@/components/icons";
+import BundleDealsBanner from "@/components/shared/BundleDealsBanner";
+import {
+  nextBundleHint,
+  priceCart,
+  pricedLinesFromCart,
+} from "@/lib/pricing";
 
 export default function CartDrawer({
   open,
@@ -31,10 +42,11 @@ export default function CartDrawer({
 
   const lines = resolveCartLines(items);
 
-  const subtotal = lines.reduce(
-    (sum, { item, product }) => sum + product.price * item.quantity,
-    0,
-  );
+  const pricedLines = pricedLinesFromCart(lines);
+  const pricing = priceCart(pricedLines);
+  const hint = nextBundleHint(pricedLines);
+  const discount = pricing.discountCents / 100;
+  const subtotal = (pricing.subtotalCents - pricing.discountCents) / 100;
 
   return (
     <>
@@ -166,6 +178,27 @@ export default function CartDrawer({
             </ul>
 
             <div className="border-t border-brand-700/10 px-6 py-6">
+              <BundleDealsBanner variant="compact" className="mb-2" />
+              {hint && (
+                <Link
+                  href="/shop"
+                  onClick={onClose}
+                  className="mb-4 flex items-center justify-between gap-2 rounded-xl border border-brand-700/20 px-3 py-2 text-sm font-semibold text-brand-700 transition-colors hover:bg-brand-100"
+                >
+                  <span>
+                    Add {hint.barsToAdd} more bar
+                    {hint.barsToAdd === 1 ? "" : "s"} to save $
+                    {(hint.savingsCents / 100).toFixed(2)}
+                  </span>
+                  <ArrowRightIcon className="size-4 shrink-0" />
+                </Link>
+              )}
+              {discount > 0 && (
+                <div className="mb-2 flex items-center justify-between text-sm font-medium text-brand-700">
+                  <span>Bundle savings</span>
+                  <span>&minus;${discount.toFixed(2)}</span>
+                </div>
+              )}
               <div className="flex items-center justify-between text-lg">
                 <span className="font-semibold text-ink">Subtotal</span>
                 <span className="font-semibold text-ink">

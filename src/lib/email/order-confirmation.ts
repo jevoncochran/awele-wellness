@@ -4,6 +4,7 @@ export type OrderConfirmationEmailData = {
   orderDate: Date;
   items: { name: string; quantity: number; price: number }[];
   subtotal: number;
+  discount?: number;
   shipping: number;
   total: number;
   shippingAddress: {
@@ -67,6 +68,19 @@ export function buildOrderConfirmationEmail(
     )
     .join("\n");
 
+  const discount = data.discount ?? 0;
+
+  const discountRowHtml =
+    discount > 0
+      ? `
+                  <tr>
+                    <td style="padding: 4px 0; color:${BRAND_GREEN}; font-size: 14px;">Bundle savings</td>
+                    <td style="padding: 4px 0; color:${BRAND_GREEN}; font-size: 14px; text-align:right;">&minus;${formatCurrency(discount)}</td>
+                  </tr>`
+      : "";
+  const discountRowText =
+    discount > 0 ? `\nBundle savings: -${formatCurrency(discount)}` : "";
+
   const addressLines = [
     data.shippingAddress.name,
     data.shippingAddress.line1,
@@ -103,7 +117,7 @@ export function buildOrderConfirmationEmail(
                   <tr>
                     <td style="padding: 4px 0; color:${INK_MUTED}; font-size: 14px;">Subtotal</td>
                     <td style="padding: 4px 0; color:${INK_MUTED}; font-size: 14px; text-align:right;">${formatCurrency(data.subtotal)}</td>
-                  </tr>
+                  </tr>${discountRowHtml}
                   <tr>
                     <td style="padding: 4px 0; color:${INK_MUTED}; font-size: 14px;">Shipping</td>
                     <td style="padding: 4px 0; color:${INK_MUTED}; font-size: 14px; text-align:right;">${formatCurrency(data.shipping)}</td>
@@ -139,7 +153,7 @@ Your Awele Wellness order is confirmed.
 
 ${itemsText}
 
-Subtotal: ${formatCurrency(data.subtotal)}
+Subtotal: ${formatCurrency(data.subtotal)}${discountRowText}
 Shipping: ${formatCurrency(data.shipping)}
 Total: ${formatCurrency(data.total)}
 
