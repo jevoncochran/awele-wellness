@@ -1,27 +1,20 @@
-import { Redis } from "@upstash/redis";
+import { getRedis } from "@/lib/redis";
 import { products } from "@/lib/products";
 
-// Two hashes keyed by product slug. A slug with no entry in STOCK_KEY is
-// "untracked": it is sold normally until the owner sets a quantity.
+// One hash keyed by product slug. A slug with no entry is "untracked": it is
+// sold normally, with no limit, until the owner sets a quantity. A quantity of
+// 0 means sold out.
 const STOCK_KEY = "inventory:stock";
-const PAUSED_KEY = "inventory:paused";
 
 export const MAX_STOCK_QUANTITY = 9999;
 
 export type StockInfo = {
   // null means untracked (no quantity limit).
   quantity: number | null;
-  // Owner has manually marked the soap as sold out.
-  paused: boolean;
   soldOut: boolean;
 };
 
 export type Inventory = Record<string, StockInfo>;
-
-export type StockUpdate = {
-  quantity: number | null;
-  paused: boolean;
-};
 
 export type Unavailable = {
   slug: string;
@@ -31,61 +24,27 @@ export type Unavailable = {
   available: number;
 };
 
-let redisClient: Redis | null = null;
-
-// Accepts the names Upstash documents as well as the KV_* names the Vercel
-// Marketplace integration injects.
-function getRedis(): Redis {
-  if (redisClient) return redisClient;
-
-  const url = process.env.UPSTASH_REDIS_REST_URL ?? process.env.KV_REST_API_URL;
-  const token =
-    process.env.UPSTASH_REDIS_REST_TOKEN ?? process.env.KV_REST_API_TOKEN;
-  if (!url || !token) {
-    throw new Error(
-      "Inventory store is not configured. Set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN.",
-    );
-  }
-
-  redisClient = new Redis({ url, token });
-  return redisClient;
-}
-
-export function describeStock(
-  quantity: number | null,
-  paused: boolean,
-): StockInfo {
-  return {
-    quantity,
-    paused,
-    soldOut: paused || (quantity !== null && quantity <= 0),
-  };
+export function describeStock(quantity: number | null): StockInfo {
+  return { quantity, soldOut: quantity !== null && quantity <= 0 };
 }
 
 function untrackedInventory(): Inventory {
   return Object.fromEntries(
-    products.map((product) => [product.slug, describeStock(null, false)]),
+    products.map((product) => [product.slug, describeStock(null)]),
   );
 }
 
 // Reads stock for every product. Throws if the store is unreachable, so the
 // admin page never shows (and then overwrites with) made-up numbers.
 export async function getInventory(): Promise<Inventory> {
-  const redis = getRedis();
-  const [stock, paused] = await Promise.all([
-    redis.hgetall<Record<string, number>>(STOCK_KEY),
-    redis.hgetall<Record<string, number>>(PAUSED_KEY),
-  ]);
+  const stock = await getRedis().hgetall<Record<string, number>>(STOCK_KEY);
 
   return Object.fromEntries(
     products.map((product) => {
       const quantity = stock?.[product.slug];
       return [
         product.slug,
-        describeStock(
-          typeof quantity === "number" ? quantity : null,
-          Boolean(paused?.[product.slug]),
-        ),
+        describeStock(typeof quantity === "number" ? quantity : null),
       ];
     }),
   );
@@ -102,43 +61,38 @@ export async function getStorefrontInventory(): Promise<Inventory> {
   }
 }
 
-export function validateStockUpdate(
+export function validateStockQuantity(
   slug: string,
-  update: StockUpdate,
+  quantity: number | null,
 ): string | null {
   if (!products.some((product) => product.slug === slug)) {
     return `Unknown product: ${slug}`;
   }
   if (
-    update.quantity !== null &&
-    (!Number.isInteger(update.quantity) ||
-      update.quantity < 0 ||
-      update.quantity > MAX_STOCK_QUANTITY)
+    quantity !== null &&
+    (!Number.isInteger(quantity) ||
+      quantity < 0 ||
+      quantity > MAX_STOCK_QUANTITY)
   ) {
     return `Quantity must be a whole number from 0 to ${MAX_STOCK_QUANTITY}.`;
   }
   return null;
 }
 
+// `null` stops tracking the soap (sold without a limit).
 export async function saveStock(
   slug: string,
-  update: StockUpdate,
+  quantity: number | null,
 ): Promise<void> {
-  const error = validateStockUpdate(slug, update);
+  const error = validateStockQuantity(slug, quantity);
   if (error) throw new Error(error);
 
-  const pipeline = getRedis().pipeline();
-  if (update.quantity === null) {
-    pipeline.hdel(STOCK_KEY, slug);
+  const redis = getRedis();
+  if (quantity === null) {
+    await redis.hdel(STOCK_KEY, slug);
   } else {
-    pipeline.hset(STOCK_KEY, { [slug]: update.quantity });
+    await redis.hset(STOCK_KEY, { [slug]: quantity });
   }
-  if (update.paused) {
-    pipeline.hset(PAUSED_KEY, { [slug]: 1 });
-  } else {
-    pipeline.hdel(PAUSED_KEY, slug);
-  }
-  await pipeline.exec();
 }
 
 // Which requested lines can't be fulfilled from current stock.
