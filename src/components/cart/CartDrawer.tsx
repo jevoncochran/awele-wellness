@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { resolveCartLines, useCart } from "@/components/cart/CartProvider";
 import { LeafIcon, ShoppingBagIcon, XIcon } from "@/components/icons";
+import { priceCart, pricedLinesFromCart } from "@/lib/pricing";
 
 export default function CartDrawer({
   open,
@@ -31,10 +32,9 @@ export default function CartDrawer({
 
   const lines = resolveCartLines(items);
 
-  const subtotal = lines.reduce(
-    (sum, { item, product }) => sum + product.price * item.quantity,
-    0,
-  );
+  const pricing = priceCart(pricedLinesFromCart(lines));
+  const discount = pricing.discountCents / 100;
+  const subtotal = (pricing.subtotalCents - pricing.discountCents) / 100;
 
   return (
     <>
@@ -166,6 +166,12 @@ export default function CartDrawer({
             </ul>
 
             <div className="border-t border-brand-700/10 px-6 py-6">
+              {discount > 0 && (
+                <div className="mb-2 flex items-center justify-between text-sm font-medium text-brand-700">
+                  <span>Bundle savings</span>
+                  <span>&minus;${discount.toFixed(2)}</span>
+                </div>
+              )}
               <div className="flex items-center justify-between text-lg">
                 <span className="font-semibold text-ink">Subtotal</span>
                 <span className="font-semibold text-ink">

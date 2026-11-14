@@ -2,11 +2,9 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import {
-  MAX_QUANTITY_PER_ITEM,
-  useCart,
-} from "@/components/cart/CartProvider";
+import { useCart } from "@/components/cart/CartProvider";
 import { ArrowRightIcon, HeartIcon, LeafIcon, TruckIcon } from "@/components/icons";
+import { MAX_QUANTITY_PER_ITEM } from "@/lib/checkout-config";
 import type { Product } from "@/lib/products";
 
 const trustPoints = [

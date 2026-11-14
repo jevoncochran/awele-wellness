@@ -1,6 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
+import { MAX_QUANTITY_PER_ITEM } from "@/lib/checkout-config";
 import { products, type Product } from "@/lib/products";
 
 export type CartItem = {
@@ -14,7 +15,6 @@ export type CartLine = {
 };
 
 const STORAGE_KEY = "awele-cart";
-export const MAX_QUANTITY_PER_ITEM = 20;
 
 const EMPTY_CART: CartItem[] = [];
 

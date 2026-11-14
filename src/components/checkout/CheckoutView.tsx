@@ -6,6 +6,7 @@ import Link from "next/link";
 import { resolveCartLines, useCart } from "@/components/cart/CartProvider";
 import { LeafIcon, ShoppingBagIcon } from "@/components/icons";
 import { SHIPPING_RATE_PER_BAR } from "@/lib/checkout-config";
+import { priceCart, pricedLinesFromCart } from "@/lib/pricing";
 import InformationStep from "@/components/checkout/InformationStep";
 import ShippingStep from "@/components/checkout/ShippingStep";
 import PaymentStep from "@/components/checkout/PaymentStep";
@@ -78,13 +79,13 @@ export default function CheckoutView() {
     EMPTY_BILLING_ADDRESS,
   );
 
-  const subtotal = lines.reduce(
-    (sum, { item, product }) => sum + product.price * item.quantity,
-    0,
-  );
-  const itemCount = lines.reduce((sum, { item }) => sum + item.quantity, 0);
-  const shipping = SHIPPING_RATE_PER_BAR * itemCount;
-  const total = step === "information" ? subtotal : subtotal + shipping;
+  const pricing = priceCart(pricedLinesFromCart(lines));
+  const subtotal = pricing.subtotalCents / 100;
+  const discount = pricing.discountCents / 100;
+  const itemCount = pricing.barCount;
+  const shipping = pricing.shippingCents / 100;
+  const total =
+    step === "information" ? subtotal - discount : subtotal - discount + shipping;
 
   if (lines.length === 0) {
     return (
@@ -220,6 +221,12 @@ export default function CheckoutView() {
               </span>
               <span>${subtotal.toFixed(2)}</span>
             </div>
+            {discount > 0 && (
+              <div className="flex justify-between font-medium text-brand-700">
+                <span>Bundle savings</span>
+                <span>&minus;${discount.toFixed(2)}</span>
+              </div>
+            )}
             <div className="flex justify-between text-ink-muted">
               <span>Shipping</span>
               <span>
