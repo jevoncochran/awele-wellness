@@ -1,4 +1,5 @@
 import { LeafIcon } from "@/components/icons";
+import BundleDealsBanner from "@/components/shared/BundleDealsBanner";
 
 export default function ShopHeader() {
   return (
@@ -14,6 +15,7 @@ export default function ShopHeader() {
         <p className="mt-4 text-lg text-ink-muted">
           Handcrafted natural soaps made with love in Oakland, California.
         </p>
+        <BundleDealsBanner className="mt-6" />
       </div>
     </div>
   );

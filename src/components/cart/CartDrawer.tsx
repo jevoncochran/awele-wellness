@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { resolveCartLines, useCart } from "@/components/cart/CartProvider";
 import { LeafIcon, ShoppingBagIcon, XIcon } from "@/components/icons";
+import BundleDealsBanner from "@/components/shared/BundleDealsBanner";
 import { priceCart, pricedLinesFromCart } from "@/lib/pricing";
 
 export default function CartDrawer({
@@ -166,6 +167,7 @@ export default function CartDrawer({
             </ul>
 
             <div className="border-t border-brand-700/10 px-6 py-6">
+              <BundleDealsBanner variant="compact" className="mb-4" />
               {discount > 0 && (
                 <div className="mb-2 flex items-center justify-between text-sm font-medium text-brand-700">
                   <span>Bundle savings</span>
