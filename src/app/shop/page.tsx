@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import ShopHeader from "@/components/shop/ShopHeader";
 import ProductGrid from "@/components/shop/ProductGrid";
+import { getStorefrontInventory } from "@/lib/inventory";
 
 export const metadata: Metadata = {
   title: "Shop | Awele Wellness",
@@ -8,11 +9,17 @@ export const metadata: Metadata = {
     "Shop handcrafted natural and medicinal bar soaps made with love in Oakland, California.",
 };
 
-export default function ShopPage() {
+// Stock changes are pushed to this page the moment the owner saves them in the
+// admin; this is the fallback if that ever gets missed.
+export const revalidate = 60;
+
+export default async function ShopPage() {
+  const inventory = await getStorefrontInventory();
+
   return (
     <main className="flex flex-1 flex-col">
       <ShopHeader />
-      <ProductGrid />
+      <ProductGrid inventory={inventory} />
     </main>
   );
 }

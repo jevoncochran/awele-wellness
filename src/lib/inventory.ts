@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache";
 import { getRedis } from "@/lib/redis";
 import { products } from "@/lib/products";
 
@@ -50,11 +51,24 @@ export async function getInventory(): Promise<Inventory> {
   );
 }
 
+// Cache tag for stock shown on the storefront. Saving stock in the admin page
+// calls updateTag(INVENTORY_TAG) so the shop reflects the change immediately.
+export const INVENTORY_TAG = "inventory";
+
+// The pages that show this are statically generated, so stock is read through
+// Next's data cache. If the read throws nothing is cached, which keeps a brief
+// Redis outage from freezing a wrong answer; the short `revalidate` is a safety
+// net in case an invalidation is ever missed.
+const getCachedInventory = unstable_cache(getInventory, ["storefront-inventory"], {
+  tags: [INVENTORY_TAG],
+  revalidate: 60,
+});
+
 // For customer-facing pages: if the store is down, keep the shop selling
 // instead of taking the whole site down with it.
 export async function getStorefrontInventory(): Promise<Inventory> {
   try {
-    return await getInventory();
+    return await getCachedInventory();
   } catch (err) {
     console.error("[inventory] Could not read stock; treating all as available:", err);
     return untrackedInventory();

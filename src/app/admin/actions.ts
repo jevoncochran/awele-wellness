@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import {
@@ -15,7 +15,11 @@ import {
   isLoginLocked,
   recordFailedLogin,
 } from "@/lib/admin-rate-limit";
-import { saveStock, validateStockQuantity } from "@/lib/inventory";
+import {
+  INVENTORY_TAG,
+  saveStock,
+  validateStockQuantity,
+} from "@/lib/inventory";
 import { products } from "@/lib/products";
 
 export type LoginState = { error?: string };
@@ -107,8 +111,10 @@ export async function saveStockChanges(
     for (const { slug, quantity } of changes) {
       await saveStock(slug, quantity);
     }
-    // Re-renders this page with the numbers that were just saved.
+    // Re-renders this page with the numbers that were just saved, and expires
+    // the cached stock so the shop and product pages show them straight away.
     revalidatePath("/admin");
+    updateTag(INVENTORY_TAG);
   } catch (err) {
     console.error("[admin] Could not save stock:", err);
     return {
