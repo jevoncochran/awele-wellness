@@ -3,10 +3,13 @@
 import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import AvailabilityNotice from "@/components/cart/AvailabilityNotice";
 import { resolveCartLines, useCart } from "@/components/cart/CartProvider";
+import { useCartAvailability } from "@/components/cart/useCartAvailability";
 import { LeafIcon, ShoppingBagIcon } from "@/components/icons";
 import { SHIPPING_RATE_PER_BAR } from "@/lib/checkout-config";
 import { priceCart, pricedLinesFromCart } from "@/lib/pricing";
+import { applyAvailability } from "@/lib/purchase-limits";
 import InformationStep from "@/components/checkout/InformationStep";
 import ShippingStep from "@/components/checkout/ShippingStep";
 import PaymentStep from "@/components/checkout/PaymentStep";
@@ -72,6 +75,11 @@ export default function CheckoutView() {
   const { items } = useCart();
   const lines = resolveCartLines(items);
 
+  // Anything sold out or short is flagged, kept out of the totals, and blocks
+  // the checkout steps until the customer updates their cart.
+  const { issues, fixCart, refresh } = useCartAvailability(true);
+  const issueBySlug = new Map(issues.map((issue) => [issue.slug, issue]));
+
   const [step, setStep] = useState<Step>("information");
   const [info, setInfo] = useState<ContactAndShippingInfo>(EMPTY_INFO);
   const [billingSameAsShipping, setBillingSameAsShipping] = useState(true);
@@ -79,7 +87,9 @@ export default function CheckoutView() {
     EMPTY_BILLING_ADDRESS,
   );
 
-  const pricing = priceCart(pricedLinesFromCart(lines));
+  const pricing = priceCart(
+    pricedLinesFromCart(resolveCartLines(applyAvailability(items, issues))),
+  );
   const subtotal = pricing.subtotalCents / 100;
   const discount = pricing.discountCents / 100;
   const itemCount = pricing.barCount;
@@ -142,6 +152,12 @@ export default function CheckoutView() {
       </div>
 
       <div className="mx-auto grid w-full max-w-6xl flex-1 grid-cols-1 gap-12 px-6 py-10 lg:grid-cols-2 lg:px-8 lg:py-14">
+        {issues.length > 0 ? (
+          <div>
+            <AvailabilityNotice issues={issues} onFix={fixCart} />
+          </div>
+        ) : (
+          <>
         {step === "information" && (
           <InformationStep
             info={info}
@@ -174,14 +190,30 @@ export default function CheckoutView() {
             }
             onChangeInfo={() => goToStep("information")}
             onChangeShipping={() => goToStep("shipping")}
+            onStockConflict={refresh}
           />
+        )}
+          </>
         )}
 
         <div className="h-fit rounded-2xl bg-brand-100/40 p-6 lg:sticky lg:top-24 lg:p-8">
           <ul className="space-y-4">
-            {lines.map(({ item, product }) => (
+            {lines.map(({ item, product }) => {
+              const issue = issueBySlug.get(product.slug);
+              const soldOut = issue?.reason === "sold_out";
+              const billableQuantity = !issue
+                ? item.quantity
+                : soldOut
+                  ? 0
+                  : Math.min(item.quantity, issue.available);
+
+              return (
               <li key={product.slug} className="flex items-center gap-4">
-                <div className="relative size-16 shrink-0 overflow-hidden rounded-lg bg-brand-100">
+                <div
+                  className={`relative size-16 shrink-0 overflow-hidden rounded-lg bg-brand-100 ${
+                    soldOut ? "opacity-50" : ""
+                  }`}
+                >
                   {product.image ? (
                     <Image
                       src={product.image}
@@ -206,12 +238,22 @@ export default function CheckoutView() {
                     {product.name}
                   </p>
                   <p className="text-xs text-ink-muted">{product.tagline}</p>
+                  {issue && (
+                    <p className="mt-0.5 text-xs font-semibold text-red-700">
+                      {soldOut ? "Sold out" : `Only ${issue.available} left`}
+                    </p>
+                  )}
                 </div>
-                <p className="text-sm font-semibold text-ink">
-                  ${(product.price * item.quantity).toFixed(2)}
+                <p
+                  className={`text-sm font-semibold ${soldOut ? "text-ink-muted" : "text-ink"}`}
+                >
+                  {soldOut
+                    ? "Not included"
+                    : `$${(product.price * billableQuantity).toFixed(2)}`}
                 </p>
               </li>
-            ))}
+              );
+            })}
           </ul>
 
           <div className="mt-6 space-y-2 border-t border-brand-700/10 pt-6 text-sm">

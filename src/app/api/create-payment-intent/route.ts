@@ -1,8 +1,10 @@
 import Stripe from "stripe";
 import { NextRequest, NextResponse } from "next/server";
-import { products } from "@/lib/products";
+import { products, type Product } from "@/lib/products";
 import { MAX_QUANTITY_PER_ITEM } from "@/lib/checkout-config";
+import { findUnavailable, getInventory, type Unavailable } from "@/lib/inventory";
 import { priceCart, type PricedLine } from "@/lib/pricing";
+import { unavailableMessage } from "@/lib/purchase-limits";
 
 const MAX_METADATA_VALUE_LENGTH = 500;
 
@@ -102,14 +104,18 @@ export async function POST(request: NextRequest) {
   const rawItems = Array.isArray(body.items) ? body.items : [];
   const email = typeof body.email === "string" ? body.email.trim() : "";
 
-  const pricedLines: PricedLine[] = [];
-  const orderLines: string[] = [];
-  const orderLineItems: { slug: string; quantity: number }[] = [];
+  // One entry per soap: repeated lines for the same soap are added together so
+  // the quantity limit and the stock check see the true total.
+  const requested = new Map<string, { product: Product; quantity: number }>();
 
   for (const rawItem of rawItems) {
     const product = products.find((p) => p.slug === rawItem.slug);
     const quantity = Number(rawItem.quantity);
-    if (product && Number.isInteger(quantity) && quantity > MAX_QUANTITY_PER_ITEM) {
+    if (!product || !Number.isInteger(quantity) || quantity < 1) {
+      continue;
+    }
+    const total = (requested.get(product.slug)?.quantity ?? 0) + quantity;
+    if (total > MAX_QUANTITY_PER_ITEM) {
       return NextResponse.json(
         {
           error: `You can order at most ${MAX_QUANTITY_PER_ITEM} of each soap. Please reduce the quantity of ${product.name}.`,
@@ -117,9 +123,14 @@ export async function POST(request: NextRequest) {
         { status: 400 },
       );
     }
-    if (!product || !Number.isInteger(quantity) || quantity < 1) {
-      continue;
-    }
+    requested.set(product.slug, { product, quantity: total });
+  }
+
+  const pricedLines: PricedLine[] = [];
+  const orderLines: string[] = [];
+  const orderLineItems: { slug: string; quantity: number }[] = [];
+
+  for (const { product, quantity } of requested.values()) {
     pricedLines.push({ priceCents: Math.round(product.price * 100), quantity });
     orderLines.push(`${product.name} x${quantity}`);
     orderLineItems.push({ slug: product.slug, quantity });
@@ -133,6 +144,23 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       { error: "Your cart is empty or invalid." },
       { status: 400 },
+    );
+  }
+
+  // Never take payment for soap that is sold out or no longer in stock. This
+  // reads stock fresh (not the cached copy the storefront uses). If the stock
+  // store itself is unreachable we let the order through rather than turn away
+  // paying customers; the failure is logged.
+  let unavailable: Unavailable[] = [];
+  try {
+    unavailable = findUnavailable(await getInventory(), orderLineItems);
+  } catch (err) {
+    console.error("[create-payment-intent] Could not check stock:", err);
+  }
+  if (unavailable.length > 0) {
+    return NextResponse.json(
+      { error: unavailableMessage(unavailable), unavailable },
+      { status: 409 },
     );
   }
 
