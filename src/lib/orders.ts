@@ -3,6 +3,7 @@ import { orderAmountsFromMetadata } from "@/lib/pricing";
 import { products } from "@/lib/products";
 
 export type OrderItem = {
+  slug: string;
   name: string;
   quantity: number;
   price: number;
@@ -99,7 +100,7 @@ export async function buildOrderFromPaymentIntent(
     .map(({ slug, quantity }) => {
       const product = products.find((p) => p.slug === slug);
       return product
-        ? { name: product.name, quantity, price: product.price }
+        ? { slug: product.slug, name: product.name, quantity, price: product.price }
         : null;
     })
     .filter((line): line is OrderItem => line !== null);

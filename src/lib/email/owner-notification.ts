@@ -13,7 +13,11 @@ const NOT_PROVIDED = "Not provided";
 
 // Email to the shop owner for every paid order: who bought, what to pack, and
 // where to ship it.
-export function buildOwnerNotificationEmail(order: Order): {
+export function buildOwnerNotificationEmail(
+  order: Order,
+  // Stock heads-ups from this order (sold out, low, oversold, or not updated).
+  stockNotes: string[] = [],
+): {
   subject: string;
   html: string;
   text: string;
@@ -76,6 +80,17 @@ export function buildOwnerNotificationEmail(order: Order): {
   const addressHtml = addressLines.map((line) => escapeHtml(line)).join("<br>");
   const addressText = addressLines.join("\n");
 
+  const stockHtml =
+    stockNotes.length > 0
+      ? `
+                <h2 style="font-family: Georgia, serif; font-size: 16px; color:${INK}; margin: 32px 0 8px;">Stock</h2>
+                <div style="font-family: Arial, sans-serif; font-size: 14px; color:${INK}; line-height: 1.6; background-color:${CREAM}; border-radius: 8px; padding: 12px 16px;">
+                  ${stockNotes.map((note) => `<p style="margin: 4px 0;">${escapeHtml(note)}</p>`).join("")}
+                </div>`
+      : "";
+  const stockText =
+    stockNotes.length > 0 ? `\nStock:\n${stockNotes.join("\n")}\n` : "";
+
   const emailHtml = order.customer.email
     ? `<a href="mailto:${escapeHtml(order.customer.email)}" style="color:${BRAND_GREEN};">${escapeHtml(order.customer.email)}</a>`
     : NOT_PROVIDED;
@@ -126,7 +141,7 @@ export function buildOwnerNotificationEmail(order: Order): {
                     <td style="padding: 12px 0 0; color:${INK}; font-size: 16px; font-weight: bold; border-top: 1px solid ${BORDER};">Total</td>
                     <td style="padding: 12px 0 0; color:${INK}; font-size: 16px; font-weight: bold; text-align:right; border-top: 1px solid ${BORDER};">${formatCurrency(order.total)}</td>
                   </tr>
-                </table>
+                </table>${stockHtml}
 
                 <h2 style="font-family: Georgia, serif; font-size: 16px; color:${INK}; margin: 32px 0 8px;">Ship to</h2>
                 <p style="font-family: Arial, sans-serif; font-size: 14px; color:${INK}; line-height: 1.6; margin: 0 0 24px;">${addressHtml}</p>
@@ -156,7 +171,7 @@ ${itemsText}
 Subtotal: ${formatCurrency(order.subtotal)}${discountRowText}
 Shipping: ${formatCurrency(order.shipping)}
 Total: ${formatCurrency(order.total)}
-
+${stockText}
 Ship to:
 ${addressText}
 

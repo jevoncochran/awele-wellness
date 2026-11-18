@@ -1,7 +1,15 @@
 import Stripe from "stripe";
 import { Resend } from "resend";
+import { revalidateTag } from "next/cache";
 import { NextRequest, NextResponse } from "next/server";
+import { INVENTORY_TAG } from "@/lib/inventory";
 import { buildOrderFromPaymentIntent, type Order } from "@/lib/orders";
+import {
+  applyOrderStock,
+  claimOnce,
+  describeStockOutcome,
+  releaseClaim,
+} from "@/lib/order-processing";
 import { buildOrderConfirmationEmail } from "@/lib/email/order-confirmation";
 import { buildOwnerNotificationEmail } from "@/lib/email/owner-notification";
 
@@ -15,6 +23,10 @@ type OutgoingEmail = {
   text: string;
 };
 
+// "skipped" = intentionally not sent (not configured / nobody to send to);
+// "failed" = tried and Resend or the network said no.
+type SendResult = "sent" | "skipped" | "failed";
+
 // Resend reports API failures (e.g. a 403 for an unverified recipient) in the
 // returned `error` instead of throwing, so both outcomes are handled here.
 async function deliverEmail(
@@ -22,7 +34,7 @@ async function deliverEmail(
   email: OutgoingEmail,
   description: string,
   reference: string,
-) {
+): Promise<SendResult> {
   const fromEmail = process.env.RESEND_FROM_EMAIL || DEFAULT_FROM_EMAIL;
 
   try {
@@ -39,26 +51,28 @@ async function deliverEmail(
         `[webhook] Failed to send ${description} for ${reference}:`,
         error,
       );
-      return;
+      return "failed";
     }
     console.log(
       `[webhook] ${description} sent for ${reference} to ${email.to}.`,
     );
+    return "sent";
   } catch (err) {
     console.error(
       `[webhook] Failed to send ${description} for ${reference}:`,
       err,
     );
+    return "failed";
   }
 }
 
-async function sendOrderConfirmationEmail(order: Order) {
+async function sendOrderConfirmationEmail(order: Order): Promise<SendResult> {
   const resendApiKey = process.env.RESEND_API_KEY;
   if (!resendApiKey) {
     console.log(
       `[webhook] Skipping confirmation email for ${order.reference} — RESEND_API_KEY not configured.`,
     );
-    return;
+    return "skipped";
   }
 
   const toEmail = order.customer.email;
@@ -66,7 +80,7 @@ async function sendOrderConfirmationEmail(order: Order) {
     console.error(
       `[webhook] Payment ${order.reference} succeeded but has no receipt_email — cannot send confirmation.`,
     );
-    return;
+    return "skipped";
   }
 
   const email = buildOrderConfirmationEmail({
@@ -82,7 +96,7 @@ async function sendOrderConfirmationEmail(order: Order) {
     paymentMethodLabel: order.paymentMethodLabel,
   });
 
-  await deliverEmail(
+  return deliverEmail(
     new Resend(resendApiKey),
     { to: toEmail, ...email },
     "Order confirmation email",
@@ -90,19 +104,22 @@ async function sendOrderConfirmationEmail(order: Order) {
   );
 }
 
-async function sendOwnerNotificationEmail(order: Order) {
+async function sendOwnerNotificationEmail(
+  order: Order,
+  stockNotes: string[],
+): Promise<SendResult> {
   const resendApiKey = process.env.RESEND_API_KEY;
   const ownerEmail = process.env.ORDER_NOTIFICATION_EMAIL;
   if (!resendApiKey || !ownerEmail) {
     console.log(
       `[webhook] Skipping owner notification for ${order.reference} — RESEND_API_KEY or ORDER_NOTIFICATION_EMAIL not configured.`,
     );
-    return;
+    return "skipped";
   }
 
-  const email = buildOwnerNotificationEmail(order);
+  const email = buildOwnerNotificationEmail(order, stockNotes);
 
-  await deliverEmail(
+  return deliverEmail(
     new Resend(resendApiKey),
     {
       to: ownerEmail,
@@ -113,6 +130,22 @@ async function sendOwnerNotificationEmail(order: Order) {
     "Owner order notification",
     order.reference,
   );
+}
+
+// Runs an email at most once per order. If Redis can't be reached we send
+// anyway: a possible duplicate is better than a missing order email.
+async function sendOnce(
+  key: string,
+  send: () => Promise<SendResult>,
+): Promise<void> {
+  const claim = await claimOnce(key);
+  if (claim === "duplicate") {
+    console.log(`[webhook] ${key} was already handled, skipping.`);
+    return;
+  }
+
+  const result = await send();
+  if (claim === "claimed" && result !== "sent") await releaseClaim(key);
 }
 
 export async function POST(request: NextRequest) {
@@ -148,8 +181,10 @@ export async function POST(request: NextRequest) {
       `Payment succeeded: ${paymentIntentSummary.id} for $${(paymentIntentSummary.amount / 100).toFixed(2)}`,
     );
 
-    // A failed email should never make Stripe retry this whole webhook —
-    // the payment itself already succeeded. Log and move on instead.
+    // The payment itself already succeeded, so nothing below should make Stripe
+    // retry the whole webhook: failures are logged and the endpoint still
+    // answers 200. Each step records when it is done, so re-sending the event
+    // from the Stripe dashboard only repeats what failed.
     try {
       const paymentIntent = await stripe.paymentIntents.retrieve(
         paymentIntentSummary.id,
@@ -161,13 +196,48 @@ export async function POST(request: NextRequest) {
           `[webhook] Payment ${paymentIntent.id} succeeded but ${result.reason} — cannot build order emails.`,
         );
       } else {
-        // Each email has its own try/catch so one failing never blocks the other.
-        for (const [label, send] of [
-          ["confirmation email", sendOrderConfirmationEmail],
-          ["owner notification", sendOwnerNotificationEmail],
-        ] as const) {
+        const { order } = result;
+
+        // 1. Take the soap out of stock, so the owner email can say what sold out.
+        let stockNotes: string[] = [];
+        try {
+          const outcome = await applyOrderStock(order);
+          stockNotes = describeStockOutcome(outcome);
+          if (outcome.updated.length > 0) {
+            // Makes the shop and product pages show the new stock right away.
+            revalidateTag(INVENTORY_TAG, { expire: 0 });
+          }
+        } catch (err) {
+          console.error(
+            `[webhook] Error while updating stock for ${paymentIntent.id}:`,
+            err,
+          );
+          stockNotes = [
+            "⚠ Stock could not be updated automatically. Please check the stock page.",
+          ];
+        }
+
+        // 2 & 3. The emails. Each has its own try/catch so one failing never
+        // blocks the other.
+        const emailSteps: [string, () => Promise<void>][] = [
+          [
+            "confirmation email",
+            () =>
+              sendOnce(`order:${order.reference}:customer-email`, () =>
+                sendOrderConfirmationEmail(order),
+              ),
+          ],
+          [
+            "owner notification",
+            () =>
+              sendOnce(`order:${order.reference}:owner-email`, () =>
+                sendOwnerNotificationEmail(order, stockNotes),
+              ),
+          ],
+        ];
+        for (const [label, run] of emailSteps) {
           try {
-            await send(result.order);
+            await run();
           } catch (err) {
             console.error(
               `[webhook] Error while sending ${label} for ${paymentIntent.id}:`,
@@ -182,9 +252,6 @@ export async function POST(request: NextRequest) {
         err,
       );
     }
-
-    // No order-storage/DB yet — persisting orders is a separate future step,
-    // not handled here.
   }
 
   return NextResponse.json({ received: true });
