@@ -27,6 +27,7 @@ export default function PaymentStep({
   onBillingAddressChange,
   onChangeInfo,
   onChangeShipping,
+  onStockConflict,
 }: {
   info: ContactAndShippingInfo;
   items: CartItem[];
@@ -39,6 +40,9 @@ export default function PaymentStep({
   onBillingAddressChange: (patch: Partial<BillingAddress>) => void;
   onChangeInfo: () => void;
   onChangeShipping: () => void;
+  // Called when the server says something in the cart just sold out, so the
+  // checkout can re-check the cart and show what to fix.
+  onStockConflict: () => void;
 }) {
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -78,6 +82,7 @@ export default function PaymentStep({
           setFetchError(
             data.error ?? "Could not start payment. Please try again.",
           );
+          if (res.status === 409) onStockConflict();
           return;
         }
         setClientSecret(data.clientSecret);

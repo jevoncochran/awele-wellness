@@ -1,9 +1,16 @@
 import Image from "next/image";
 import Link from "next/link";
 import { LeafIcon } from "@/components/icons";
+import SoldOutBadge from "@/components/shared/SoldOutBadge";
 import type { Product } from "@/lib/products";
 
-export default function ProductCard({ product }: { product: Product }) {
+export default function ProductCard({
+  product,
+  soldOut = false,
+}: {
+  product: Product;
+  soldOut?: boolean;
+}) {
   return (
     <Link
       href={`/shop/${product.slug}`}
@@ -16,19 +23,23 @@ export default function ProductCard({ product }: { product: Product }) {
             alt={`${product.name} bar soap`}
             fill
             sizes="(min-width: 1024px) 25vw, (min-width: 640px) 50vw, 100vw"
-            className="object-cover"
+            className={`object-cover ${soldOut ? "opacity-60" : ""}`}
           />
+          {soldOut && <SoldOutBadge />}
         </div>
       ) : (
-        <div
-          className={`relative flex aspect-square items-center justify-center bg-gradient-to-br p-8 ${product.gradient}`}
-        >
-          <div className="flex flex-col items-center gap-1 rounded-lg bg-cream/95 px-4 py-3 text-center shadow-md ring-1 ring-black/5">
-            <LeafIcon className="size-4 text-brand-700" />
-            <span className="font-serif text-xs font-semibold tracking-wide text-ink">
-              Awele Wellness
-            </span>
+        <div className="relative aspect-square">
+          <div
+            className={`flex size-full items-center justify-center bg-gradient-to-br p-8 ${product.gradient} ${soldOut ? "opacity-60" : ""}`}
+          >
+            <div className="flex flex-col items-center gap-1 rounded-lg bg-cream/95 px-4 py-3 text-center shadow-md ring-1 ring-black/5">
+              <LeafIcon className="size-4 text-brand-700" />
+              <span className="font-serif text-xs font-semibold tracking-wide text-ink">
+                Awele Wellness
+              </span>
+            </div>
           </div>
+          {soldOut && <SoldOutBadge />}
         </div>
       )}
 

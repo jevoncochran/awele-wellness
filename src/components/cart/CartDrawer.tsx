@@ -3,7 +3,9 @@
 import { useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import AvailabilityNotice from "@/components/cart/AvailabilityNotice";
 import { resolveCartLines, useCart } from "@/components/cart/CartProvider";
+import { useCartAvailability } from "@/components/cart/useCartAvailability";
 import {
   ArrowRightIcon,
   LeafIcon,
@@ -16,6 +18,7 @@ import {
   priceCart,
   pricedLinesFromCart,
 } from "@/lib/pricing";
+import { applyAvailability } from "@/lib/purchase-limits";
 
 export default function CartDrawer({
   open,
@@ -40,9 +43,17 @@ export default function CartDrawer({
     };
   }, [open, onClose]);
 
+  // Checked each time the drawer opens or the cart changes.
+  const { issues, fixCart } = useCartAvailability(open);
+  const issueBySlug = new Map(issues.map((issue) => [issue.slug, issue]));
+
   const lines = resolveCartLines(items);
 
-  const pricedLines = pricedLinesFromCart(lines);
+  // Totals only count what can actually be bought: sold-out soaps are left out
+  // and short ones are counted at what's left.
+  const pricedLines = pricedLinesFromCart(
+    resolveCartLines(applyAvailability(items, issues)),
+  );
   const pricing = priceCart(pricedLines);
   const hint = nextBundleHint(pricedLines);
   const discount = pricing.discountCents / 100;
@@ -95,12 +106,25 @@ export default function CartDrawer({
         ) : (
           <>
             <ul className="flex-1 overflow-y-auto px-6">
-              {lines.map(({ item, product }) => (
+              {lines.map(({ item, product }) => {
+                const issue = issueBySlug.get(product.slug);
+                const soldOut = issue?.reason === "sold_out";
+                const billableQuantity = !issue
+                  ? item.quantity
+                  : soldOut
+                    ? 0
+                    : Math.min(item.quantity, issue.available);
+
+                return (
                 <li
                   key={product.slug}
                   className="flex gap-4 border-b border-brand-700/10 py-6 first:pt-6 last:border-b-0"
                 >
-                  <div className="relative size-20 shrink-0 overflow-hidden rounded-xl bg-brand-100">
+                  <div
+                    className={`relative size-20 shrink-0 overflow-hidden rounded-xl bg-brand-100 ${
+                      soldOut ? "opacity-50" : ""
+                    }`}
+                  >
                     {product.image ? (
                       <Image
                         src={product.image}
@@ -131,6 +155,11 @@ export default function CartDrawer({
                         <p className="text-sm text-ink-muted">
                           ${product.price.toFixed(2)}
                         </p>
+                        {issue && (
+                          <p className="mt-1 text-sm font-semibold text-red-700">
+                            {soldOut ? "Sold out" : `Only ${issue.available} left`}
+                          </p>
+                        )}
                       </div>
                       <button
                         type="button"
@@ -168,18 +197,33 @@ export default function CartDrawer({
                           +
                         </button>
                       </div>
-                      <p className="font-semibold text-ink">
-                        ${(product.price * item.quantity).toFixed(2)}
+                      <p
+                        className={`font-semibold ${soldOut ? "text-ink-muted" : "text-ink"}`}
+                      >
+                        {soldOut
+                          ? "Not included"
+                          : `$${(product.price * billableQuantity).toFixed(2)}`}
                       </p>
                     </div>
                   </div>
                 </li>
-              ))}
+                );
+              })}
             </ul>
 
             <div className="border-t border-brand-700/10 px-6 py-6">
-              <BundleDealsBanner variant="compact" className="mb-2" />
-              {hint && (
+              {issues.length > 0 && (
+                <AvailabilityNotice
+                  issues={issues}
+                  onFix={fixCart}
+                  className="mb-4"
+                />
+              )}
+              {/* Promos wait until the cart is sorted out; they only crowd the fix. */}
+              {issues.length === 0 && (
+                <BundleDealsBanner variant="compact" className="mb-2" />
+              )}
+              {issues.length === 0 && hint && (
                 <Link
                   href="/shop"
                   onClick={onClose}
@@ -208,13 +252,23 @@ export default function CartDrawer({
               <p className="mt-1 text-sm text-ink-muted">
                 Shipping &amp; taxes calculated at checkout.
               </p>
-              <Link
-                href="/checkout"
-                onClick={onClose}
-                className="mt-4 block w-full rounded-full bg-brand-700 px-8 py-3.5 text-center text-sm font-semibold text-cream transition-colors hover:bg-brand-800"
-              >
-                Checkout
-              </Link>
+              {issues.length > 0 ? (
+                <button
+                  type="button"
+                  disabled
+                  className="mt-4 block w-full cursor-not-allowed rounded-full bg-ink-muted/20 px-8 py-3.5 text-center text-sm font-semibold text-ink-muted"
+                >
+                  Update your cart to continue
+                </button>
+              ) : (
+                <Link
+                  href="/checkout"
+                  onClick={onClose}
+                  className="mt-4 block w-full rounded-full bg-brand-700 px-8 py-3.5 text-center text-sm font-semibold text-cream transition-colors hover:bg-brand-800"
+                >
+                  Checkout
+                </Link>
+              )}
             </div>
           </>
         )}
