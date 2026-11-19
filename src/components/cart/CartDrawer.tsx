@@ -65,7 +65,7 @@ export default function CartDrawer({
         onClick={onClose}
         aria-hidden="true"
         className={`fixed inset-0 z-40 bg-ink/50 transition-opacity duration-300 ${
-          open ? "opacity-100" : "pointer-events-none opacity-0"
+          open ? "cursor-pointer opacity-100" : "pointer-events-none opacity-0"
         }`}
       />
 
