@@ -1,21 +1,23 @@
 import { logout } from "@/app/admin/actions";
 import StockForm, { type StockRow } from "@/app/admin/StockForm";
 import { requireAdmin } from "@/lib/admin-auth";
+import { getCatalogFresh, type CatalogProduct } from "@/lib/catalog";
 import { getInventory, type Inventory } from "@/lib/inventory";
-import { products } from "@/lib/products";
 
 export default async function AdminPage() {
   await requireAdmin();
 
+  let catalog: CatalogProduct[] = [];
   let inventory: Inventory | null = null;
   try {
-    inventory = await getInventory();
+    catalog = await getCatalogFresh();
+    inventory = await getInventory(catalog);
   } catch (err) {
     console.error("[admin] Could not load stock:", err);
   }
 
   const rows: StockRow[] = inventory
-    ? products.map((product) => ({
+    ? catalog.map((product) => ({
         slug: product.slug,
         name: product.name,
         image: product.image,

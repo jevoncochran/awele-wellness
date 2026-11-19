@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useCart } from "@/components/cart/CartProvider";
-import type { UnavailableItem } from "@/lib/purchase-limits";
+import { isRemoved, type UnavailableItem } from "@/lib/purchase-limits";
 
 type Result = { key: string; issues: UnavailableItem[] };
 
@@ -45,7 +45,7 @@ export function useCartAvailability(enabled: boolean) {
   // Removes sold-out soaps and lowers short ones to what's left.
   function fixCart() {
     for (const issue of issues) {
-      if (issue.reason === "sold_out" || issue.available <= 0) {
+      if (isRemoved(issue)) {
         removeItem(issue.slug);
       } else {
         updateQuantity(issue.slug, issue.available);

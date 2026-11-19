@@ -2,24 +2,27 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import ProductGallery from "@/components/product/ProductGallery";
 import ProductDetails from "@/components/product/ProductDetails";
+import { findProduct, getCatalog } from "@/lib/catalog";
 import { getStorefrontInventory } from "@/lib/inventory";
-import { products } from "@/lib/products";
+import { SEED_PRODUCTS } from "@/lib/products";
 
-// Stock changes are pushed to this page the moment the owner saves them in the
-// admin; this is the fallback if that ever gets missed.
+// Stock and soap changes are pushed to this page the moment the owner saves
+// them in the admin; this is the fallback if that ever gets missed.
 export const revalidate = 60;
 
+// Only the original soaps are prebuilt. Soaps added later are built the first
+// time someone visits them, then kept fresh like the rest.
 export function generateStaticParams() {
-  return products.map((product) => ({ slug: product.slug }));
+  return SEED_PRODUCTS.map((product) => ({ slug: product.slug }));
 }
 
 export async function generateMetadata({
   params,
 }: PageProps<"/shop/[slug]">): Promise<Metadata> {
   const { slug } = await params;
-  const product = products.find((p) => p.slug === slug);
+  const product = findProduct(await getCatalog(), slug);
 
-  if (!product) return {};
+  if (!product || product.hidden) return {};
 
   return {
     title: `${product.name} | Awele Wellness`,
@@ -31,9 +34,10 @@ export default async function ProductPage({
   params,
 }: PageProps<"/shop/[slug]">) {
   const { slug } = await params;
-  const product = products.find((p) => p.slug === slug);
+  const product = findProduct(await getCatalog(), slug);
 
-  if (!product) notFound();
+  // A hidden soap has no page.
+  if (!product || product.hidden) notFound();
 
   const inventory = await getStorefrontInventory();
   const soldOut = inventory[product.slug]?.soldOut ?? false;

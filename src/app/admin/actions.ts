@@ -20,7 +20,7 @@ import {
   saveStock,
   validateStockQuantity,
 } from "@/lib/inventory";
-import { products } from "@/lib/products";
+import { getCatalogFresh, type CatalogProduct } from "@/lib/catalog";
 
 export type LoginState = { error?: string };
 
@@ -75,10 +75,21 @@ export async function saveStockChanges(
 ): Promise<SaveStockState> {
   await requireAdmin();
 
+  let catalog: CatalogProduct[];
+  try {
+    catalog = await getCatalogFresh();
+  } catch (err) {
+    console.error("[admin] Could not read the catalog:", err);
+    return {
+      status: "error",
+      message: "Couldn't reach the database. Nothing was saved.",
+    };
+  }
+
   const changes: { slug: string; name: string; quantity: number | null }[] = [];
   const problems: string[] = [];
 
-  for (const product of products) {
+  for (const product of catalog) {
     const quantityText = String(formData.get(`quantity-${product.slug}`) ?? "").trim();
     const original = String(formData.get(`original-${product.slug}`) ?? "");
 
@@ -89,7 +100,7 @@ export async function saveStockChanges(
       continue;
     }
     const quantity = quantityText === "" ? null : Number(quantityText);
-    const problem = validateStockQuantity(product.slug, quantity);
+    const problem = validateStockQuantity(quantity);
     if (problem) {
       problems.push(`${product.name}: ${problem}`);
       continue;

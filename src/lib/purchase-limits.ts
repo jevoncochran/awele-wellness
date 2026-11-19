@@ -10,15 +10,28 @@ export function purchaseLimit(available: number | null): number {
 export type UnavailableItem = {
   slug: string;
   name: string;
-  reason: "sold_out" | "insufficient";
-  // How many can still be ordered (0 when sold out).
+  // "unavailable" means the owner has hidden the soap.
+  reason: "sold_out" | "insufficient" | "unavailable";
+  // How many can still be ordered (0 when sold out or unavailable).
   available: number;
 };
 
-// "Cool Spring Scrub is sold out" / "only 3 Tea Tree Mint are left".
+// "Cool Spring Scrub is sold out" / "only 3 Tea Tree Mint are left" /
+// "Lavender Soap is no longer available".
 export function describeUnavailable(problem: UnavailableItem): string {
   if (problem.reason === "sold_out") return `${problem.name} is sold out`;
+  if (problem.reason === "unavailable") {
+    return `${problem.name} is no longer available`;
+  }
   return `only ${problem.available} ${problem.name} ${problem.available === 1 ? "is" : "are"} left`;
+}
+
+// A soap that can't be bought at all (sold out or hidden), as opposed to one
+// where only some of the requested quantity is left.
+export function isRemoved(
+  problem: Pick<UnavailableItem, "reason" | "available">,
+): boolean {
+  return problem.reason !== "insufficient" || problem.available <= 0;
 }
 
 // Plain-English explanation of why a cart can't be checked out, used by the
@@ -39,7 +52,7 @@ export function applyAvailability<T extends { slug: string; quantity: number }>(
   return items.flatMap((item) => {
     const problem = bySlug.get(item.slug);
     if (!problem) return [item];
-    if (problem.reason === "sold_out" || problem.available <= 0) return [];
+    if (isRemoved(problem)) return [];
     return [{ ...item, quantity: Math.min(item.quantity, problem.available) }];
   });
 }

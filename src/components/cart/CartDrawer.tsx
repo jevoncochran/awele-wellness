@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import AvailabilityNotice from "@/components/cart/AvailabilityNotice";
 import { resolveCartLines, useCart } from "@/components/cart/CartProvider";
+import { useCatalog } from "@/components/cart/CatalogProvider";
 import { useCartAvailability } from "@/components/cart/useCartAvailability";
 import {
   ArrowRightIcon,
@@ -18,7 +19,7 @@ import {
   priceCart,
   pricedLinesFromCart,
 } from "@/lib/pricing";
-import { applyAvailability } from "@/lib/purchase-limits";
+import { applyAvailability, isRemoved } from "@/lib/purchase-limits";
 
 export default function CartDrawer({
   open,
@@ -47,12 +48,13 @@ export default function CartDrawer({
   const { issues, fixCart } = useCartAvailability(open);
   const issueBySlug = new Map(issues.map((issue) => [issue.slug, issue]));
 
-  const lines = resolveCartLines(items);
+  const catalog = useCatalog();
+  const lines = resolveCartLines(items, catalog);
 
   // Totals only count what can actually be bought: sold-out soaps are left out
   // and short ones are counted at what's left.
   const pricedLines = pricedLinesFromCart(
-    resolveCartLines(applyAvailability(items, issues)),
+    resolveCartLines(applyAvailability(items, issues), catalog),
   );
   const pricing = priceCart(pricedLines);
   const hint = nextBundleHint(pricedLines);
@@ -108,7 +110,7 @@ export default function CartDrawer({
             <ul className="flex-1 overflow-y-auto px-6">
               {lines.map(({ item, product }) => {
                 const issue = issueBySlug.get(product.slug);
-                const soldOut = issue?.reason === "sold_out";
+                const soldOut = issue ? isRemoved(issue) : false;
                 const billableQuantity = !issue
                   ? item.quantity
                   : soldOut
@@ -157,7 +159,11 @@ export default function CartDrawer({
                         </p>
                         {issue && (
                           <p className="mt-1 text-sm font-semibold text-red-700">
-                            {soldOut ? "Sold out" : `Only ${issue.available} left`}
+                            {soldOut
+                              ? issue.reason === "unavailable"
+                                ? "No longer available"
+                                : "Sold out"
+                              : `Only ${issue.available} left`}
                           </p>
                         )}
                       </div>

@@ -1,6 +1,6 @@
 import { unstable_cache } from "next/cache";
+import { findProduct, getCatalogFresh, type CatalogProduct } from "@/lib/catalog";
 import { getRedis } from "@/lib/redis";
-import { products } from "@/lib/products";
 
 // One hash keyed by product slug. A slug with no entry is "untracked": it is
 // sold normally, with no limit, until the owner sets a quantity. A quantity of
@@ -20,8 +20,9 @@ export type Inventory = Record<string, StockInfo>;
 export type Unavailable = {
   slug: string;
   name: string;
-  reason: "sold_out" | "insufficient";
-  // How many can still be ordered (0 when sold out).
+  // "unavailable" means the owner has hidden the soap.
+  reason: "sold_out" | "insufficient" | "unavailable";
+  // How many can still be ordered (0 when sold out or unavailable).
   available: number;
 };
 
@@ -29,19 +30,19 @@ export function describeStock(quantity: number | null): StockInfo {
   return { quantity, soldOut: quantity !== null && quantity <= 0 };
 }
 
-function untrackedInventory(): Inventory {
-  return Object.fromEntries(
-    products.map((product) => [product.slug, describeStock(null)]),
-  );
-}
+// Reads stock for every soap in the catalog (pass the catalog if you already
+// have it, to save a read). Throws if the store is unreachable, so the admin
+// page never shows (and then overwrites with) made-up numbers.
+export async function getInventory(
+  catalog?: CatalogProduct[],
+): Promise<Inventory> {
+  const [soaps, stock] = await Promise.all([
+    catalog ?? getCatalogFresh(),
+    getRedis().hgetall<Record<string, number>>(STOCK_KEY),
+  ]);
 
-// Reads stock for every product. Throws if the store is unreachable, so the
-// admin page never shows (and then overwrites with) made-up numbers.
-export async function getInventory(): Promise<Inventory> {
-  const stock = await getRedis().hgetall<Record<string, number>>(STOCK_KEY);
-
   return Object.fromEntries(
-    products.map((product) => {
+    soaps.map((product) => {
       const quantity = stock?.[product.slug];
       return [
         product.slug,
@@ -64,24 +65,19 @@ const getCachedInventory = unstable_cache(getInventory, ["storefront-inventory"]
   revalidate: 60,
 });
 
-// For customer-facing pages: if the store is down, keep the shop selling
-// instead of taking the whole site down with it.
+// For customer-facing pages: if stock can't be read, say nothing is sold out
+// (an empty answer, which the pages read as "available") instead of taking the
+// whole shop down with it.
 export async function getStorefrontInventory(): Promise<Inventory> {
   try {
     return await getCachedInventory();
   } catch (err) {
     console.error("[inventory] Could not read stock; treating all as available:", err);
-    return untrackedInventory();
+    return {};
   }
 }
 
-export function validateStockQuantity(
-  slug: string,
-  quantity: number | null,
-): string | null {
-  if (!products.some((product) => product.slug === slug)) {
-    return `Unknown product: ${slug}`;
-  }
+export function validateStockQuantity(quantity: number | null): string | null {
   if (
     quantity !== null &&
     (!Number.isInteger(quantity) ||
@@ -98,8 +94,11 @@ export async function saveStock(
   slug: string,
   quantity: number | null,
 ): Promise<void> {
-  const error = validateStockQuantity(slug, quantity);
+  const error = validateStockQuantity(quantity);
   if (error) throw new Error(error);
+  if (!findProduct(await getCatalogFresh(), slug)) {
+    throw new Error(`Unknown product: ${slug}`);
+  }
 
   const redis = getRedis();
   if (quantity === null) {
@@ -109,17 +108,26 @@ export async function saveStock(
   }
 }
 
-// Which requested lines can't be fulfilled from current stock.
+// Which requested lines can't be fulfilled: hidden soaps, sold-out soaps, and
+// quantities beyond what's left. Soaps not in the catalog are ignored.
 export function findUnavailable(
   inventory: Inventory,
   requested: { slug: string; quantity: number }[],
+  catalog: CatalogProduct[],
 ): Unavailable[] {
   const problems: Unavailable[] = [];
 
   for (const { slug, quantity } of requested) {
+    const product = findProduct(catalog, slug);
+    if (!product) continue;
+
+    if (product.hidden) {
+      problems.push({ slug, name: product.name, reason: "unavailable", available: 0 });
+      continue;
+    }
+
     const info = inventory[slug];
-    const product = products.find((p) => p.slug === slug);
-    if (!info || !product) continue;
+    if (!info) continue;
 
     if (info.soldOut) {
       problems.push({ slug, name: product.name, reason: "sold_out", available: 0 });

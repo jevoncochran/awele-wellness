@@ -1,6 +1,6 @@
 import type Stripe from "stripe";
 import { orderAmountsFromMetadata } from "@/lib/pricing";
-import { products } from "@/lib/products";
+import { findProduct, getCatalogFresh } from "@/lib/catalog";
 
 export type OrderItem = {
   slug: string;
@@ -96,9 +96,12 @@ export async function buildOrderFromPaymentIntent(
     orderLineItems = [];
   }
 
+  // Hidden soaps stay in the catalog, so an order for a soap that was hidden
+  // after it was bought still resolves.
+  const catalog = await getCatalogFresh();
   const items = orderLineItems
     .map(({ slug, quantity }) => {
-      const product = products.find((p) => p.slug === slug);
+      const product = findProduct(catalog, slug);
       return product
         ? { slug: product.slug, name: product.name, quantity, price: product.price }
         : null;
