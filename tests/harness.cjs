@@ -108,6 +108,16 @@ function createHarness() {
     }
   }
 
+  // ---------- Vercel Blob (photo storage) ----------
+  const blob = { puts: [], fail: false };
+  const fakeBlob = {
+    put: async (pathname, body, options) => {
+      if (blob.fail) throw new Error("blob store unreachable");
+      blob.puts.push({ pathname, size: body.length, options });
+      return { url: "https://abc123.public.blob.vercel-storage.com/" + pathname.replace(".", "-XYZ.") };
+    },
+  };
+
   // ---------- Next.js ----------
   const next = { tagCalls: [], revalidated: [], updatedTags: [], cacheCalls: [] };
   const request = { cookies: {}, headers: { "x-forwarded-for": "203.0.113.7, 10.0.0.1" }, cookieOptions: {} };
@@ -122,6 +132,7 @@ function createHarness() {
     stripe: { default: FakeStripe, __esModule: true },
     resend: { Resend: FakeResend },
     "@upstash/redis": { Redis: FakeRedis },
+    "@vercel/blob": fakeBlob,
     "server-only": {},
     jose,
     "node:crypto": crypto,
@@ -150,6 +161,7 @@ function createHarness() {
   // stand-ins. Suites that test them pass `realAuth` to `load`.
   const authStubs = {
     "@/lib/admin-auth": {
+      isAdmin: async () => auth.loggedIn,
       requireAdmin: async () => {
         if (!auth.loggedIn) throw new Redirect("/admin/login");
       },
@@ -193,6 +205,7 @@ function createHarness() {
     redis,
     stripe,
     resend,
+    blob,
     next,
     request,
     auth,
