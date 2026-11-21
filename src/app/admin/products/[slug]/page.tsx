@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import AdminHeader from "@/app/admin/AdminHeader";
-import SoapForm from "@/app/admin/SoapForm";
+import AdminHeader from "@/components/admin/AdminHeader";
+import SoapForm from "@/components/admin/SoapForm";
 import { changeLinkClassName } from "@/components/checkout/formStyles";
 import { requireAdmin } from "@/lib/admin-auth";
 import { findProduct, getCatalogFresh, type CatalogProduct } from "@/lib/catalog";

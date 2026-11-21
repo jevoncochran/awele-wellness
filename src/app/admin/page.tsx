@@ -1,6 +1,6 @@
 import Link from "next/link";
-import AdminHeader from "@/app/admin/AdminHeader";
-import SoapList, { type StockRow } from "@/app/admin/SoapList";
+import AdminHeader from "@/components/admin/AdminHeader";
+import SoapList, { type StockRow } from "@/components/admin/SoapList";
 import { requireAdmin } from "@/lib/admin-auth";
 import { getCatalogFresh, type CatalogProduct } from "@/lib/catalog";
 import { getInventory, type Inventory } from "@/lib/inventory";

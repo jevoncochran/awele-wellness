@@ -23,7 +23,7 @@ const GOOD = {
 (async () => {
   const input = h.load("lib/product-input");
   const catalog = h.load("lib/catalog");
-  const actions = h.load("app/admin/actions");
+  const actions = h.load("lib/admin-actions");
   const seed = h.load("lib/products");
   const { hashes } = h.redis;
 

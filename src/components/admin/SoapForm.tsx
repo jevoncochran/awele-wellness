@@ -12,8 +12,8 @@ import {
   createProduct,
   updateProduct,
   type ProductFormState,
-} from "@/app/admin/actions";
-import PhotoField from "@/app/admin/PhotoField";
+} from "@/lib/admin-actions";
+import PhotoField from "@/components/admin/PhotoField";
 import { inputClassName } from "@/components/checkout/formStyles";
 import { LIMITS } from "@/lib/product-input";
 

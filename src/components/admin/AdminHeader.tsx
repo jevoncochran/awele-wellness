@@ -1,4 +1,4 @@
-import { logout } from "@/app/admin/actions";
+import { logout } from "@/lib/admin-actions";
 
 // Title and Log out, shared by the admin pages.
 export default function AdminHeader({ title }: { title: string }) {

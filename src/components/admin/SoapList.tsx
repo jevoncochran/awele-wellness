@@ -3,8 +3,8 @@
 import { startTransition, useActionState, useState, type FormEvent } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { saveStockChanges, type SaveStockState } from "@/app/admin/actions";
-import VisibilityButton from "@/app/admin/VisibilityButton";
+import { saveStockChanges, type SaveStockState } from "@/lib/admin-actions";
+import VisibilityButton from "@/components/admin/VisibilityButton";
 import { inputClassName } from "@/components/checkout/formStyles";
 import { LeafIcon } from "@/components/icons";
 

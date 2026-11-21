@@ -10,7 +10,7 @@ const t = createReporter("admin login: sessions, password, proxy, lockout");
   const opts = { realAuth: true };
   const session = h.load("lib/admin-session", opts);
   const auth = h.load("lib/admin-auth", opts);
-  const actions = h.load("app/admin/actions", opts);
+  const actions = h.load("lib/admin-actions", opts);
   const { proxy } = h.load("proxy", opts);
   const secret = new TextEncoder().encode(TEST_ENV.ADMIN_SESSION_SECRET);
   const form = (pw) => ({ get: (k) => (k === "password" ? pw : null) });

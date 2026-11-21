@@ -4,7 +4,7 @@ import { startTransition, useActionState } from "react";
 import {
   setProductVisibility,
   type ProductActionState,
-} from "@/app/admin/actions";
+} from "@/lib/admin-actions";
 
 const initialState: ProductActionState = { status: "idle" };
 

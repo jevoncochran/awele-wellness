@@ -1,6 +1,6 @@
 import Link from "next/link";
-import AdminHeader from "@/app/admin/AdminHeader";
-import SoapForm from "@/app/admin/SoapForm";
+import AdminHeader from "@/components/admin/AdminHeader";
+import SoapForm from "@/components/admin/SoapForm";
 import { requireAdmin } from "@/lib/admin-auth";
 import { changeLinkClassName } from "@/components/checkout/formStyles";
 
