@@ -2,7 +2,9 @@
 
 import { startTransition, useActionState, useState, type FormEvent } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { saveStockChanges, type SaveStockState } from "@/app/admin/actions";
+import VisibilityButton from "@/app/admin/VisibilityButton";
 import { inputClassName } from "@/components/checkout/formStyles";
 import { LeafIcon } from "@/components/icons";
 
@@ -13,6 +15,8 @@ export type StockRow = {
   gradient: string;
   // null means "not tracked" (sold without a limit); 0 means sold out.
   quantity: number | null;
+  // Hidden from the shop (stock can still be edited).
+  hidden: boolean;
 };
 
 type Draft = {
@@ -55,12 +59,14 @@ function StatusBadge({ row }: { row: StockRow }) {
 
 // The save status lives out here so it survives the editor below remounting
 // with fresh saved values after each save.
-export default function StockForm({ rows }: { rows: StockRow[] }) {
+export default function SoapList({ rows }: { rows: StockRow[] }) {
   const [state, formAction, pending] = useActionState(saveStockChanges, initialState);
 
   return (
     <StockEditor
-      key={JSON.stringify(rows)}
+      // Start over only when a saved quantity (or the set of soaps) changes.
+      // Hiding or showing a soap must not wipe quantities typed but not yet saved.
+      key={JSON.stringify(rows.map((row) => [row.slug, row.quantity]))}
       rows={rows}
       state={state}
       formAction={formAction}
@@ -132,7 +138,11 @@ function StockEditor({
               <input type="hidden" name={`original-${row.slug}`} value={savedQuantityText(row)} />
 
               <div className="flex min-w-0 flex-1 basis-56 items-center gap-4">
-                <div className="relative size-14 shrink-0 overflow-hidden rounded-lg bg-brand-100">
+                <div
+                  className={`relative size-14 shrink-0 overflow-hidden rounded-lg bg-brand-100 ${
+                    row.hidden ? "opacity-50" : ""
+                  }`}
+                >
                   {row.image ? (
                     <Image src={row.image} alt="" fill sizes="56px" className="object-cover" />
                   ) : (
@@ -145,14 +155,27 @@ function StockEditor({
                   <p className="font-serif text-base text-ink">{row.name}</p>
                   <div className="mt-1 flex flex-wrap items-center gap-2">
                     <StatusBadge row={row} />
+                    {row.hidden && (
+                      <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-800">
+                        Hidden from shop
+                      </span>
+                    )}
                     {dirty && (
                       <span className="text-xs font-semibold text-amber-700">Unsaved</span>
+                    )}
+                    {!row.hidden && (
+                      <Link
+                        href={`/shop/${row.slug}`}
+                        className="text-xs font-medium text-brand-700 underline decoration-brand-700/40 underline-offset-4 hover:text-brand-800"
+                      >
+                        View in shop
+                      </Link>
                     )}
                   </div>
                 </div>
               </div>
 
-              <div className="flex items-center gap-5">
+              <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
                 <label className="flex items-center gap-2 text-sm text-ink-muted">
                   <span className="sr-only sm:not-sr-only">Quantity</span>
                   <span className="block w-40 shrink-0">
@@ -180,6 +203,7 @@ function StockEditor({
                   />
                   Sold out
                 </label>
+                <VisibilityButton slug={row.slug} name={row.name} hidden={row.hidden} />
               </div>
             </li>
           );
@@ -188,7 +212,9 @@ function StockEditor({
 
       <p className="mt-3 text-sm text-ink-muted">
         A quantity of 0 means sold out, and ticking &ldquo;Sold out&rdquo; sets
-        it to 0. Leave the quantity blank to sell without a limit.
+        it to 0. Leave the quantity blank to sell without a limit. Quantity
+        changes need &ldquo;Save&rdquo;; hiding or showing a soap happens
+        immediately, and nothing is ever deleted.
       </p>
 
       <div className="sticky bottom-0 -mx-6 mt-6 flex flex-wrap items-center gap-4 border-t border-brand-700/10 bg-cream/95 px-6 py-4 backdrop-blur lg:-mx-8 lg:px-8">

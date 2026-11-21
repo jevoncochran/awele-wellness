@@ -150,6 +150,37 @@ const t = createReporter("server: stock, checkout, availability, admin save, web
   h.redis.failCatalogRead = false;
   t.check("catalog unreadable: clear error, nothing saved", r.status === "error" && /Nothing was saved/.test(r.message));
 
+  t.section("admin hide / show");
+  const vis = (slug, hidden) => ({ get: (k) => ({ slug, hidden: hidden ? "true" : "false" })[k] ?? null });
+  const toggle = (slug, hidden) => actions.setProductVisibility({ status: "idle" }, vis(slug, hidden));
+  h.auth.loggedIn = false;
+  err = null;
+  try {
+    await toggle("peppermint", true);
+  } catch (e) {
+    err = e;
+  }
+  h.auth.loggedIn = true;
+  t.check("logged out: redirected, nothing changed", err instanceof Redirect && !(await catalog.getCatalogFresh()).some((p) => p.slug === "peppermint" && p.hidden));
+  h.next.updatedTags.length = 0;
+  h.next.revalidated.length = 0;
+  r = await toggle("peppermint", true);
+  t.check("hiding saves it and says so", r.status === "saved" && /Peppermint is now hidden from the shop/.test(r.message) && (await catalog.getCatalogFresh()).find((p) => p.slug === "peppermint").hidden === true);
+  t.check("it expires the catalog cache tag (so the shop updates at once) and refreshes the admin pages", h.next.updatedTags.includes("catalog") && h.next.revalidated.includes("/admin"));
+  const hiddenBuy = await buy([L("peppermint", 1)]);
+  t.check("...and checkout now refuses that soap", hiddenBuy.status === 409 && /no longer available/.test(hiddenBuy.body.error));
+  r = await toggle("peppermint", false);
+  t.check("showing it again saves and says so", r.status === "saved" && /visible in the shop again/.test(r.message) && !(await catalog.getCatalogFresh()).find((p) => p.slug === "peppermint").hidden);
+  r = await t.quiet(() => toggle("not-a-soap", true));
+  t.check("an unknown soap gives a clear error and creates nothing", r.status === "error" && /no longer exists/.test(r.message) && !(await catalog.getCatalogFresh()).some((p) => p.slug === "not-a-soap"));
+  h.next.updatedTags.length = 0;
+  h.redis.failCatalogRead = true;
+  r = await t.quiet(() => toggle("peppermint", true));
+  h.redis.failCatalogRead = false;
+  t.check("database trouble: a clear error, no cache expiry, nothing changed", r.status === "error" && /Couldn't save/.test(r.message) && h.next.updatedTags.length === 0 && !(await catalog.getCatalogFresh()).find((p) => p.slug === "peppermint").hidden);
+  r = await t.quiet(() => toggle("", true));
+  t.check("a missing soap name is handled, not a crash", r.status === "error");
+
   t.section("orders + webhook");
   const makePI = (id, items, over = {}) => ({
     id, created: 1794600000, amount: 3000, receipt_email: "buyer@example.com",

@@ -20,9 +20,19 @@ import {
   saveStock,
   validateStockQuantity,
 } from "@/lib/inventory";
-import { getCatalogFresh, type CatalogProduct } from "@/lib/catalog";
+import {
+  CATALOG_TAG,
+  getCatalogFresh,
+  setProductHidden,
+  type CatalogProduct,
+} from "@/lib/catalog";
 
 export type LoginState = { error?: string };
+
+export type ProductActionState = {
+  status: "idle" | "saved" | "error";
+  message?: string;
+};
 
 export type SaveStockState = {
   status: "idle" | "saved" | "error";
@@ -139,6 +149,41 @@ export async function saveStockChanges(
     status: "saved",
     message: `Saved ${changes.length} change${changes.length === 1 ? "" : "s"}: ${changes.map((c) => c.name).join(", ")}.`,
   };
+}
+
+// Hides or shows one soap. Hidden soaps disappear from the shop, their product
+// page goes away, and a cart still holding one is flagged at checkout.
+export async function setProductVisibility(
+  _previousState: ProductActionState,
+  formData: FormData,
+): Promise<ProductActionState> {
+  await requireAdmin();
+
+  const slug = String(formData.get("slug") ?? "");
+  const hidden = formData.get("hidden") === "true";
+
+  try {
+    const product = await setProductHidden(slug, hidden);
+    // Expire the cached catalog so the shop and product pages change straight
+    // away, and refresh the admin pages.
+    updateTag(CATALOG_TAG);
+    revalidatePath("/admin");
+    return {
+      status: "saved",
+      message: hidden
+        ? `${product.name} is now hidden from the shop.`
+        : `${product.name} is visible in the shop again.`,
+    };
+  } catch (err) {
+    console.error("[admin] Could not change visibility:", err);
+    const unknown = err instanceof Error && /^Unknown product/.test(err.message);
+    return {
+      status: "error",
+      message: unknown
+        ? "That soap no longer exists. Refresh the page."
+        : "Couldn't save that change. Please try again.",
+    };
+  }
 }
 
 export async function logout() {

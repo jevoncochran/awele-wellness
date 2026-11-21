@@ -20,7 +20,11 @@ let failed = 0;
 for (const file of files) {
   const run = spawnSync(process.execPath, [path.join(__dirname, file)], { encoding: "utf8" });
   const lines = (run.stdout + run.stderr).trim().split("\n");
-  const summary = lines.filter((l) => /passed \(|FAILED \(|^ERROR|Error:/.test(l)).slice(-1)[0] ?? "no result";
+  // The suite's own summary line; only fall back to an ERROR line if it never got that far.
+  const summary =
+    lines.filter((l) => /passed \(|FAILED \(/.test(l)).slice(-1)[0] ??
+    lines.filter((l) => /^ERROR/.test(l)).slice(-1)[0] ??
+    "no result";
   const ok = run.status === 0;
   if (!ok) {
     failed++;

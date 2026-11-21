@@ -58,6 +58,29 @@ const t = createReporter("catalog: import, reading, ordering, parsing");
   list = await catalog.getCatalogFresh();
   t.check("a corrupt record in Redis is skipped, not fatal", list.length === 15 && !list.some((x) => x.slug === "broken" || x.slug === "half"));
 
+  t.section("hide and show");
+  h.resetRedis();
+  await catalog.getCatalogFresh();
+  const before = (await catalog.getCatalogFresh()).find((s) => s.slug === "peppermint");
+  const hid = await catalog.setProductHidden("peppermint", true);
+  const afterHide = await catalog.getCatalogFresh();
+  t.check("hiding returns the soap, hidden, and it is saved", hid.hidden === true && afterHide.find((s) => s.slug === "peppermint").hidden === true);
+  const pAfter = afterHide.find((s) => s.slug === "peppermint");
+  t.check("nothing else about that soap changes (name, photo, text, position)", pAfter.name === before.name && pAfter.image === before.image && pAfter.description === before.description && pAfter.sortOrder === before.sortOrder && JSON.stringify(pAfter.ingredients) === JSON.stringify(before.ingredients));
+  t.check("no other soap is touched, and the catalog still holds all 13 (nothing deleted)", afterHide.length === 13 && afterHide.filter((s) => s.hidden).length === 1);
+  t.check("hiding twice is harmless", (await catalog.setProductHidden("peppermint", true)).hidden === true && (await catalog.getCatalogFresh()).filter((s) => s.hidden).length === 1);
+  t.check("showing it again works", (await catalog.setProductHidden("peppermint", false)).hidden === false && (await catalog.getCatalogFresh()).every((s) => !s.hidden));
+  let unknownThrew = false;
+  try {
+    await catalog.setProductHidden("not-a-soap", true);
+  } catch (e) {
+    unknownThrew = /Unknown product/.test(e.message);
+  }
+  t.check("an unknown soap is rejected, not created", unknownThrew && (await catalog.getCatalogFresh()).length === 13);
+  const hiddenOne = await catalog.setProductHidden("charcoal-aloe", true);
+  t.check("works for any of the original soaps, and a hidden one stays findable for old orders", catalog.findProduct(await catalog.getCatalogFresh(), "charcoal-aloe")?.name === hiddenOne.name && !catalog.visibleProducts(await catalog.getCatalogFresh()).some((s) => s.slug === "charcoal-aloe"));
+  await catalog.setProductHidden("charcoal-aloe", false);
+
   t.section("races and outages");
   h.resetRedis();
   const results = await Promise.all(Array.from({ length: 5 }, () => catalog.getCatalogFresh()));

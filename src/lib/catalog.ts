@@ -131,6 +131,20 @@ export async function getCatalog(): Promise<CatalogProduct[]> {
   }
 }
 
+// Hides or shows a soap. Nothing is deleted: a hidden soap leaves the shop but
+// stays in the catalog, so old orders and carts can still find its name.
+export async function setProductHidden(
+  slug: string,
+  hidden: boolean,
+): Promise<CatalogProduct> {
+  const product = findProduct(await readCatalog(), slug);
+  if (!product) throw new Error(`Unknown product: ${slug}`);
+
+  const updated = { ...product, hidden };
+  await getRedis().hset(PRODUCTS_KEY, { [slug]: JSON.stringify(updated) });
+  return updated;
+}
+
 export function visibleProducts(catalog: CatalogProduct[]): CatalogProduct[] {
   return catalog.filter((product) => !product.hidden);
 }
