@@ -22,16 +22,25 @@ import {
 } from "@/lib/inventory";
 import {
   CATALOG_TAG,
+  DuplicateProductError,
+  addProduct,
   getCatalogFresh,
   setProductHidden,
   type CatalogProduct,
 } from "@/lib/catalog";
+import { parseProductForm, type ProductFieldErrors } from "@/lib/product-input";
 
 export type LoginState = { error?: string };
 
 export type ProductActionState = {
   status: "idle" | "saved" | "error";
   message?: string;
+};
+
+export type ProductFormState = {
+  status: "idle" | "error";
+  message?: string;
+  fieldErrors?: ProductFieldErrors;
 };
 
 export type SaveStockState = {
@@ -184,6 +193,77 @@ export async function setProductVisibility(
         : "Couldn't save that change. Please try again.",
     };
   }
+}
+
+// Adds a new soap from the "Add a soap" form. On success it goes back to the
+// list with a confirmation; on a problem it returns the messages and nothing
+// (or, if only the stock step failed, a hidden soap) is left behind.
+export async function createProduct(
+  _previousState: ProductFormState,
+  formData: FormData,
+): Promise<ProductFormState> {
+  await requireAdmin();
+
+  const parsed = parseProductForm(formData);
+  const fieldErrors: ProductFieldErrors = parsed.ok ? {} : { ...parsed.errors };
+
+  // Optional starting stock: blank = not tracked (sold without a limit).
+  const stockText = String(formData.get("stock") ?? "").trim();
+  let quantity: number | null = null;
+  if (stockText !== "") {
+    quantity = /^\d+$/.test(stockText) ? Number(stockText) : NaN;
+    const problem = validateStockQuantity(quantity);
+    if (problem) fieldErrors.stock = problem;
+  }
+
+  if (!parsed.ok || Object.keys(fieldErrors).length > 0) {
+    return {
+      status: "error",
+      message: "Please fix the highlighted fields. Nothing was saved.",
+      fieldErrors,
+    };
+  }
+
+  // With a starting stock, the soap is created hidden and only shown once the
+  // stock is saved, so a failure can never leave a limited soap on sale as
+  // "unlimited".
+  let product: CatalogProduct;
+  try {
+    product = await addProduct(parsed.value, { hidden: quantity !== null });
+  } catch (err) {
+    if (err instanceof DuplicateProductError) {
+      return {
+        status: "error",
+        message: "Please fix the highlighted fields. Nothing was saved.",
+        fieldErrors: { name: "A soap with that name already exists." },
+      };
+    }
+    console.error("[admin] Could not add the soap:", err);
+    return {
+      status: "error",
+      message: "Couldn't save the soap. Nothing was added. Please try again.",
+    };
+  }
+
+  if (quantity !== null) {
+    try {
+      await saveStock(product.slug, quantity);
+      await setProductHidden(product.slug, false);
+      updateTag(INVENTORY_TAG);
+    } catch (err) {
+      console.error("[admin] Added a soap but could not finish setting its stock:", err);
+      updateTag(CATALOG_TAG);
+      revalidatePath("/admin");
+      return {
+        status: "error",
+        message: `${product.name} was added but is hidden for now, because its stock couldn't be saved. Go back to the list, set its quantity, and press "Show in shop". Don't add it again.`,
+      };
+    }
+  }
+
+  updateTag(CATALOG_TAG);
+  revalidatePath("/admin");
+  redirect(`/admin?added=${encodeURIComponent(product.slug)}`);
 }
 
 export async function logout() {

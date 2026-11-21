@@ -1,11 +1,17 @@
+import Link from "next/link";
 import AdminHeader from "@/app/admin/AdminHeader";
 import SoapList, { type StockRow } from "@/app/admin/SoapList";
 import { requireAdmin } from "@/lib/admin-auth";
 import { getCatalogFresh, type CatalogProduct } from "@/lib/catalog";
 import { getInventory, type Inventory } from "@/lib/inventory";
 
-export default async function AdminPage() {
+export default async function AdminPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ added?: string }>;
+}) {
   await requireAdmin();
+  const { added } = await searchParams;
 
   let catalog: CatalogProduct[] = [];
   let inventory: Inventory | null = null;
@@ -15,6 +21,10 @@ export default async function AdminPage() {
   } catch (err) {
     console.error("[admin] Could not load soaps:", err);
   }
+
+  // After "Add a soap": confirm using the soap's stored name, never the raw
+  // text from the address.
+  const addedSoap = catalog.find((product) => product.slug === added);
 
   const rows: StockRow[] = inventory
     ? catalog.map((product) => ({
@@ -32,7 +42,35 @@ export default async function AdminPage() {
       <div className="mx-auto w-full max-w-4xl">
         <AdminHeader title="Soaps" />
 
-        <div className="mt-8">
+        {addedSoap && (
+          <p
+            role="status"
+            className="mt-6 rounded-xl bg-brand-100 px-5 py-3 text-sm font-medium text-brand-800"
+          >
+            {addedSoap.hidden
+              ? `${addedSoap.name} was added, but it's hidden. Press "Show in shop" when you're ready.`
+              : `${addedSoap.name} was added and is live in the shop.`}{" "}
+            {!addedSoap.hidden && (
+              <Link
+                href={`/shop/${addedSoap.slug}`}
+                className="underline decoration-brand-700/40 underline-offset-4"
+              >
+                View it
+              </Link>
+            )}
+          </p>
+        )}
+
+        <div className="mt-6 flex justify-end">
+          <Link
+            href="/admin/products/new"
+            className="rounded-full bg-brand-700 px-6 py-2.5 text-sm font-semibold text-cream transition-colors hover:bg-brand-800"
+          >
+            + Add a soap
+          </Link>
+        </div>
+
+        <div className="mt-4">
           {inventory ? (
             <SoapList rows={rows} />
           ) : (

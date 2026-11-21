@@ -1,6 +1,7 @@
 import { unstable_cache } from "next/cache";
 import { getRedis } from "@/lib/redis";
 import { SEED_PRODUCTS, SOAP_PRICE, type Product } from "@/lib/products";
+import { pickGradient, slugify, uniqueSlug, type ProductInput } from "@/lib/product-input";
 
 // The shop's soaps live in one Redis hash, keyed by slug. The original 13 are
 // copied in once from products.ts; after that this is the only source.
@@ -143,6 +144,53 @@ export async function setProductHidden(
   const updated = { ...product, hidden };
   await getRedis().hset(PRODUCTS_KEY, { [slug]: JSON.stringify(updated) });
   return updated;
+}
+
+// Thrown when another soap already has this name.
+export class DuplicateProductError extends Error {}
+
+// Adds a new soap at the end of the shop. The address (slug) comes from the
+// name, is unique, and never changes afterwards. `hidden` lets the caller keep
+// it out of the shop until follow-up steps (like setting stock) have worked.
+export async function addProduct(
+  input: ProductInput,
+  { hidden = false }: { hidden?: boolean } = {},
+): Promise<CatalogProduct> {
+  const catalog = await readCatalog();
+  const nameKey = input.name.toLowerCase();
+  if (catalog.some((product) => product.name.toLowerCase() === nameKey)) {
+    throw new DuplicateProductError(`A soap named "${input.name}" already exists`);
+  }
+
+  const taken = new Set(catalog.map((product) => product.slug));
+  // Records without a position sort to the very end; ignore those here.
+  const positions = catalog.map((p) => p.sortOrder).filter((n) => n < 1_000_000);
+  const sortOrder = Math.max(-1, ...positions) + 1;
+  const base = slugify(input.name);
+  const redis = getRedis();
+
+  // If two soaps are added at the same instant and pick the same address, the
+  // write below only succeeds for one of them; the other moves to the next.
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const slug = uniqueSlug(base, taken);
+    const record: CatalogProduct = {
+      slug,
+      name: input.name,
+      tagline: input.tagline,
+      description: input.description,
+      ingredients: input.ingredients,
+      image: input.image,
+      gradient: pickGradient(catalog.length),
+      price: SOAP_PRICE,
+      hidden,
+      sortOrder,
+    };
+    if ((await redis.hsetnx(PRODUCTS_KEY, slug, JSON.stringify(record))) === 1) {
+      return record;
+    }
+    taken.add(slug);
+  }
+  throw new Error("Could not find a free address for the new soap");
 }
 
 export function visibleProducts(catalog: CatalogProduct[]): CatalogProduct[] {
