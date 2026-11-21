@@ -193,6 +193,34 @@ export async function addProduct(
   throw new Error("Could not find a free address for the new soap");
 }
 
+// Saves the owner's edits to a soap's text and photo. Its address (slug),
+// price, position, and shown/hidden state stay as they are. Returns the soap's
+// previous photo so the caller can clean it up if it was replaced.
+export async function updateProduct(
+  slug: string,
+  input: ProductInput,
+): Promise<{ product: CatalogProduct; previousImage?: string }> {
+  const catalog = await readCatalog();
+  const current = findProduct(catalog, slug);
+  if (!current) throw new Error(`Unknown product: ${slug}`);
+
+  const nameKey = input.name.toLowerCase();
+  if (catalog.some((p) => p.slug !== slug && p.name.toLowerCase() === nameKey)) {
+    throw new DuplicateProductError(`A soap named "${input.name}" already exists`);
+  }
+
+  const product: CatalogProduct = {
+    ...current,
+    name: input.name,
+    tagline: input.tagline,
+    description: input.description,
+    ingredients: input.ingredients,
+    image: input.image,
+  };
+  await getRedis().hset(PRODUCTS_KEY, { [slug]: JSON.stringify(product) });
+  return { product, previousImage: current.image };
+}
+
 export function visibleProducts(catalog: CatalogProduct[]): CatalogProduct[] {
   return catalog.filter((product) => !product.hidden);
 }

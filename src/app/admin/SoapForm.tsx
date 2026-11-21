@@ -8,7 +8,11 @@ import {
   type ReactNode,
 } from "react";
 import Link from "next/link";
-import { createProduct, type ProductFormState } from "@/app/admin/actions";
+import {
+  createProduct,
+  updateProduct,
+  type ProductFormState,
+} from "@/app/admin/actions";
 import PhotoField from "@/app/admin/PhotoField";
 import { inputClassName } from "@/components/checkout/formStyles";
 import { LIMITS } from "@/lib/product-input";
@@ -44,8 +48,22 @@ function Field({
   );
 }
 
-export default function AddSoapForm() {
-  const [state, formAction, pending] = useActionState(createProduct, initialState);
+export type EditableSoap = {
+  slug: string;
+  name: string;
+  tagline: string;
+  description: string;
+  ingredients: string[];
+  image?: string;
+};
+
+// The form for adding a soap, or (with `soap`) editing an existing one.
+export default function SoapForm({ soap }: { soap?: EditableSoap }) {
+  const editing = soap !== undefined;
+  const [state, formAction, pending] = useActionState(
+    editing ? updateProduct : createProduct,
+    initialState,
+  );
   const [uploading, setUploading] = useState(false);
   const errors = state.fieldErrors ?? {};
 
@@ -59,6 +77,16 @@ export default function AddSoapForm() {
 
   return (
     <form onSubmit={handleSubmit} className="mt-6 space-y-6 rounded-2xl bg-white p-6 shadow-sm">
+      {editing && (
+        <>
+          <input type="hidden" name="slug" value={soap.slug} />
+          <p className="text-sm text-ink-muted">
+            Web address: <span className="font-mono text-ink">/shop/{soap.slug}</span>{" "}
+            (it stays the same even if you rename the soap, so links keep working).
+          </p>
+        </>
+      )}
+
       <Field label="Name" htmlFor="name" error={errors.name}>
         <input
           id="name"
@@ -66,6 +94,7 @@ export default function AddSoapForm() {
           type="text"
           required
           maxLength={LIMITS.nameMax}
+          defaultValue={soap?.name}
           placeholder="e.g. Rose Clay"
           className={inputClassName}
         />
@@ -83,6 +112,7 @@ export default function AddSoapForm() {
           type="text"
           required
           maxLength={LIMITS.taglineMax}
+          defaultValue={soap?.tagline}
           className={inputClassName}
         />
       </Field>
@@ -94,6 +124,7 @@ export default function AddSoapForm() {
           required
           rows={4}
           maxLength={LIMITS.descriptionMax}
+          defaultValue={soap?.description}
           className={inputClassName}
         />
       </Field>
@@ -104,17 +135,25 @@ export default function AddSoapForm() {
         hint="Separate with commas, e.g. Goat Milk, Oatmeal, Honey."
         error={errors.ingredients}
       >
-        <input id="ingredients" name="ingredients" type="text" required className={inputClassName} />
+        <input
+          id="ingredients"
+          name="ingredients"
+          type="text"
+          required
+          defaultValue={soap?.ingredients.join(", ")}
+          className={inputClassName}
+        />
       </Field>
 
       <div>
         <p className="text-sm font-semibold text-ink">Photo</p>
         <p className="mt-1 text-xs text-ink-muted">
-          Optional, but shoppers like to see the soap. Without one, a colored
-          placeholder is shown.
+          {editing
+            ? "Choose a new photo to replace the current one."
+            : "Optional, but shoppers like to see the soap. Without one, a colored placeholder is shown."}
         </p>
         <div className="mt-3">
-          <PhotoField name="image" onUploadingChange={setUploading} />
+          <PhotoField name="image" initialUrl={soap?.image} onUploadingChange={setUploading} />
         </div>
         {errors.image && (
           <p role="alert" className="mt-1.5 text-sm font-medium text-red-700">
@@ -123,30 +162,33 @@ export default function AddSoapForm() {
         )}
       </div>
 
-      <Field
-        label="Starting stock"
-        htmlFor="stock"
-        hint="How many you have right now. Leave blank to sell without a limit; you can change it any time in the list."
-        error={errors.stock}
-      >
-        <span className="block w-40">
-          <input
-            id="stock"
-            name="stock"
-            type="number"
-            inputMode="numeric"
-            min={0}
-            max={9999}
-            step={1}
-            placeholder="Not tracked"
-            className={inputClassName}
-          />
-        </span>
-      </Field>
+      {!editing && (
+        <Field
+          label="Starting stock"
+          htmlFor="stock"
+          hint="How many you have right now. Leave blank to sell without a limit; you can change it any time in the list."
+          error={errors.stock}
+        >
+          <span className="block w-40">
+            <input
+              id="stock"
+              name="stock"
+              type="number"
+              inputMode="numeric"
+              min={0}
+              max={9999}
+              step={1}
+              placeholder="Not tracked"
+              className={inputClassName}
+            />
+          </span>
+        </Field>
+      )}
 
       <p className="text-sm text-ink-muted">
-        The price is the same as every other soap, and the new soap appears in
-        the shop as soon as you save.
+        {editing
+          ? "The price is the same as every other soap. Stock and Hide/Show are on the list. Saving updates the shop straight away."
+          : "The price is the same as every other soap, and the new soap appears in the shop as soon as you save."}
       </p>
 
       <div className="flex flex-wrap items-center gap-4 border-t border-brand-700/10 pt-6">
@@ -155,7 +197,7 @@ export default function AddSoapForm() {
           disabled={pending || uploading}
           className="rounded-full bg-brand-700 px-8 py-3 text-sm font-semibold text-cream transition-colors hover:bg-brand-800 disabled:opacity-50"
         >
-          {pending ? "Saving…" : uploading ? "Uploading photo…" : "Add soap"}
+          {pending ? "Saving…" : uploading ? "Uploading photo…" : editing ? "Save changes" : "Add soap"}
         </button>
         <Link
           href="/admin"

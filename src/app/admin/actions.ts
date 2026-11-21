@@ -1,5 +1,6 @@
 "use server";
 
+import { del } from "@vercel/blob";
 import { revalidatePath, updateTag } from "next/cache";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
@@ -24,10 +25,13 @@ import {
   CATALOG_TAG,
   DuplicateProductError,
   addProduct,
+  findProduct,
   getCatalogFresh,
   setProductHidden,
+  updateProduct as updateCatalogProduct,
   type CatalogProduct,
 } from "@/lib/catalog";
+import { isOurBlobUrl } from "@/lib/blob-host";
 import { parseProductForm, type ProductFieldErrors } from "@/lib/product-input";
 
 export type LoginState = { error?: string };
@@ -264,6 +268,66 @@ export async function createProduct(
   updateTag(CATALOG_TAG);
   revalidatePath("/admin");
   redirect(`/admin?added=${encodeURIComponent(product.slug)}`);
+}
+
+// Saves changes to an existing soap from the Edit form (any soap, including
+// the original 13). The address, price, position and shown/hidden state never
+// change here; stock and Hide/Show are on the list.
+export async function updateProduct(
+  _previousState: ProductFormState,
+  formData: FormData,
+): Promise<ProductFormState> {
+  await requireAdmin();
+
+  const slug = String(formData.get("slug") ?? "");
+  let current: CatalogProduct | undefined;
+  try {
+    current = findProduct(await getCatalogFresh(), slug);
+  } catch (err) {
+    console.error("[admin] Could not read the catalog:", err);
+    return { status: "error", message: "Couldn't reach the database. Nothing was saved." };
+  }
+  if (!current) {
+    return { status: "error", message: "That soap no longer exists. Go back to the list and refresh." };
+  }
+
+  const parsed = parseProductForm(formData, current.image);
+  if (!parsed.ok) {
+    return {
+      status: "error",
+      message: "Please fix the highlighted fields. Nothing was saved.",
+      fieldErrors: parsed.errors,
+    };
+  }
+
+  let previousImage: string | undefined;
+  try {
+    ({ previousImage } = await updateCatalogProduct(slug, parsed.value));
+  } catch (err) {
+    if (err instanceof DuplicateProductError) {
+      return {
+        status: "error",
+        message: "Please fix the highlighted fields. Nothing was saved.",
+        fieldErrors: { name: "Another soap already has that name." },
+      };
+    }
+    console.error("[admin] Could not save the soap:", err);
+    return { status: "error", message: "Couldn't save the changes. Nothing was changed. Please try again." };
+  }
+
+  // The soap is saved. If its photo was replaced, remove the old file from
+  // storage. Best effort: a failure here only leaves an unused file behind.
+  if (previousImage && previousImage !== parsed.value.image && isOurBlobUrl(previousImage)) {
+    try {
+      await del(previousImage);
+    } catch (err) {
+      console.error("[admin] Saved the soap but could not delete its old photo:", err);
+    }
+  }
+
+  updateTag(CATALOG_TAG);
+  revalidatePath("/admin");
+  redirect(`/admin?saved=${encodeURIComponent(slug)}`);
 }
 
 export async function logout() {

@@ -109,13 +109,18 @@ function createHarness() {
   }
 
   // ---------- Vercel Blob (photo storage) ----------
-  const blob = { puts: [], fail: false };
+  const blob = { puts: [], deleted: [], fail: false, failDelete: false };
   const fakeBlob = {
     put: async (pathname, body, options) => {
       if (blob.fail) throw new Error("blob store unreachable");
       blob.puts.push({ pathname, size: body.length, options });
       return { url: "https://abc123.public.blob.vercel-storage.com/" + pathname.replace(".", "-XYZ.") };
     },
+  };
+
+  fakeBlob.del = async (url) => {
+    if (blob.failDelete) throw new Error("blob delete failed");
+    blob.deleted.push(url);
   };
 
   // ---------- Next.js ----------

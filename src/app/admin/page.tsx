@@ -8,10 +8,10 @@ import { getInventory, type Inventory } from "@/lib/inventory";
 export default async function AdminPage({
   searchParams,
 }: {
-  searchParams: Promise<{ added?: string }>;
+  searchParams: Promise<{ added?: string; saved?: string }>;
 }) {
   await requireAdmin();
-  const { added } = await searchParams;
+  const { added, saved } = await searchParams;
 
   let catalog: CatalogProduct[] = [];
   let inventory: Inventory | null = null;
@@ -25,6 +25,7 @@ export default async function AdminPage({
   // After "Add a soap": confirm using the soap's stored name, never the raw
   // text from the address.
   const addedSoap = catalog.find((product) => product.slug === added);
+  const savedSoap = catalog.find((product) => product.slug === saved);
 
   const rows: StockRow[] = inventory
     ? catalog.map((product) => ({
@@ -53,6 +54,23 @@ export default async function AdminPage({
             {!addedSoap.hidden && (
               <Link
                 href={`/shop/${addedSoap.slug}`}
+                className="underline decoration-brand-700/40 underline-offset-4"
+              >
+                View it
+              </Link>
+            )}
+          </p>
+        )}
+
+        {savedSoap && !addedSoap && (
+          <p
+            role="status"
+            className="mt-6 rounded-xl bg-brand-100 px-5 py-3 text-sm font-medium text-brand-800"
+          >
+            {savedSoap.name} was updated.{" "}
+            {!savedSoap.hidden && (
+              <Link
+                href={`/shop/${savedSoap.slug}`}
                 className="underline decoration-brand-700/40 underline-offset-4"
               >
                 View it

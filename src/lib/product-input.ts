@@ -66,12 +66,17 @@ export function slugify(name: string): string {
     .replace(/-+$/, "");
 }
 
+// Addresses a soap may never use: /admin/products/new is the Add form, so a
+// soap called "New" would be impossible to edit.
+const RESERVED_SLUGS: ReadonlySet<string> = new Set(["new"]);
+
 // The first free address: "peppermint", then "peppermint-2", "peppermint-3"...
 export function uniqueSlug(base: string, taken: ReadonlySet<string>): string {
-  if (!taken.has(base)) return base;
+  const isFree = (slug: string) => !taken.has(slug) && !RESERVED_SLUGS.has(slug);
+  if (isFree(base)) return base;
   for (let n = 2; ; n++) {
     const candidate = `${base.slice(0, 46)}-${n}`;
-    if (!taken.has(candidate)) return candidate;
+    if (isFree(candidate)) return candidate;
   }
 }
 

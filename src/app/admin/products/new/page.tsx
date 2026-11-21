@@ -1,6 +1,6 @@
 import Link from "next/link";
 import AdminHeader from "@/app/admin/AdminHeader";
-import AddSoapForm from "@/app/admin/products/new/AddSoapForm";
+import SoapForm from "@/app/admin/SoapForm";
 import { requireAdmin } from "@/lib/admin-auth";
 import { changeLinkClassName } from "@/components/checkout/formStyles";
 
@@ -16,7 +16,7 @@ export default async function NewSoapPage() {
             &larr; Back to all soaps
           </Link>
         </p>
-        <AddSoapForm />
+        <SoapForm />
       </div>
     </main>
   );
