@@ -9,7 +9,27 @@ export type Product = {
   ingredients: string[];
 };
 
-export const products: Product[] = [
+// Every soap sells at this one price, which is what the bundle deals assume.
+export const SOAP_PRICE = 9.99;
+
+// Fallback card colors for soaps without a photo. They are written out in full
+// here (and in the soaps below) because Tailwind only builds classes it can see
+// in the source, so soaps added later have to pick from this list.
+export const GRADIENT_PALETTE = [
+  "from-amber-100 via-orange-50 to-yellow-50",
+  "from-amber-50 via-yellow-50 to-orange-50",
+  "from-emerald-100 via-teal-50 to-lime-50",
+  "from-neutral-800 via-neutral-700 to-neutral-600",
+  "from-purple-200 via-purple-100 to-lime-100",
+  "from-rose-200 via-red-100 to-orange-50",
+  "from-teal-100 via-emerald-50 to-cyan-50",
+  "from-teal-200 via-emerald-100 to-cyan-50",
+] as const;
+
+// The original 13 soaps. They are copied into the database once (see
+// catalog.ts); after that the live site reads the catalog from there. Don't
+// read this list for anything the owner can change.
+export const SEED_PRODUCTS: Product[] = [
   {
     slug: "milk-and-collagen",
     name: "Milk and Collagen",

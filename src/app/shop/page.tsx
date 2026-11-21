@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import ShopHeader from "@/components/shop/ShopHeader";
 import ProductGrid from "@/components/shop/ProductGrid";
+import { getCatalog, visibleProducts } from "@/lib/catalog";
 import { getStorefrontInventory } from "@/lib/inventory";
 
 export const metadata: Metadata = {
@@ -14,12 +15,15 @@ export const metadata: Metadata = {
 export const revalidate = 60;
 
 export default async function ShopPage() {
-  const inventory = await getStorefrontInventory();
+  const [catalog, inventory] = await Promise.all([
+    getCatalog(),
+    getStorefrontInventory(),
+  ]);
 
   return (
     <main className="flex flex-1 flex-col">
       <ShopHeader />
-      <ProductGrid inventory={inventory} />
+      <ProductGrid products={visibleProducts(catalog)} inventory={inventory} />
     </main>
   );
 }

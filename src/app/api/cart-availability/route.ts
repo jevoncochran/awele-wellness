@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { findUnavailable, getInventory } from "@/lib/inventory";
-import { products } from "@/lib/products";
+import { getCatalogFresh } from "@/lib/catalog";
+import { findUnavailable, getInventory, type Inventory } from "@/lib/inventory";
+
+const MAX_LINES = 200;
 
 // Tells the cart and checkout screens which of the customer's own items can't
 // be fulfilled. It only answers about the items it is given, so it doesn't
@@ -13,12 +15,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
   }
 
+  // Soaps that aren't in the catalog are ignored further down.
   const totals = new Map<string, number>();
-  for (const item of Array.isArray(body.items) ? body.items : []) {
-    const quantity = Number(item.quantity);
+  const rawItems = Array.isArray(body.items) ? body.items.slice(0, MAX_LINES) : [];
+  for (const item of rawItems) {
+    const quantity = Number(item?.quantity);
     if (
-      !products.some((product) => product.slug === item.slug) ||
-      typeof item.slug !== "string" ||
+      typeof item?.slug !== "string" ||
       !Number.isInteger(quantity) ||
       quantity < 1
     ) {
@@ -28,11 +31,21 @@ export async function POST(request: NextRequest) {
   }
   const requested = [...totals].map(([slug, quantity]) => ({ slug, quantity }));
 
-  // If stock can't be read, say nothing is wrong: the payment endpoint makes the
-  // real decision, and the same fail-open choice applies there.
+  // If the catalog or stock can't be read, say nothing is wrong: the payment
+  // endpoint makes the real decision, and the same fail-open choice applies
+  // there.
   try {
-    const unavailable = findUnavailable(await getInventory(), requested);
-    return NextResponse.json({ unavailable, checked: true });
+    const catalog = await getCatalogFresh();
+    let inventory: Inventory = {};
+    let checked = true;
+    try {
+      inventory = await getInventory(catalog);
+    } catch (err) {
+      console.error("[cart-availability] Could not read stock:", err);
+      checked = false;
+    }
+    const unavailable = findUnavailable(inventory, requested, catalog);
+    return NextResponse.json({ unavailable, checked });
   } catch (err) {
     console.error("[cart-availability] Could not check stock:", err);
     return NextResponse.json({ unavailable: [], checked: false });

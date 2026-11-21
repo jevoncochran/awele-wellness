@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { login, type LoginState } from "@/app/admin/actions";
+import { login, type LoginState } from "@/lib/admin-actions";
 import { inputClassName } from "@/components/checkout/formStyles";
 import { EyeIcon, EyeOffIcon } from "@/components/icons";
 

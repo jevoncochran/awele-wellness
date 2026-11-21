@@ -5,11 +5,12 @@ import Image from "next/image";
 import Link from "next/link";
 import AvailabilityNotice from "@/components/cart/AvailabilityNotice";
 import { resolveCartLines, useCart } from "@/components/cart/CartProvider";
+import { useCatalog } from "@/components/cart/CatalogProvider";
 import { useCartAvailability } from "@/components/cart/useCartAvailability";
 import { LeafIcon, ShoppingBagIcon } from "@/components/icons";
 import { SHIPPING_RATE_PER_BAR } from "@/lib/checkout-config";
 import { priceCart, pricedLinesFromCart } from "@/lib/pricing";
-import { applyAvailability } from "@/lib/purchase-limits";
+import { applyAvailability, isRemoved } from "@/lib/purchase-limits";
 import InformationStep from "@/components/checkout/InformationStep";
 import ShippingStep from "@/components/checkout/ShippingStep";
 import PaymentStep from "@/components/checkout/PaymentStep";
@@ -73,7 +74,8 @@ const STEP_LABELS: Record<Step, string> = {
 
 export default function CheckoutView() {
   const { items } = useCart();
-  const lines = resolveCartLines(items);
+  const catalog = useCatalog();
+  const lines = resolveCartLines(items, catalog);
 
   // Anything sold out or short is flagged, kept out of the totals, and blocks
   // the checkout steps until the customer updates their cart.
@@ -88,7 +90,9 @@ export default function CheckoutView() {
   );
 
   const pricing = priceCart(
-    pricedLinesFromCart(resolveCartLines(applyAvailability(items, issues))),
+    pricedLinesFromCart(
+      resolveCartLines(applyAvailability(items, issues), catalog),
+    ),
   );
   const subtotal = pricing.subtotalCents / 100;
   const discount = pricing.discountCents / 100;
@@ -200,7 +204,7 @@ export default function CheckoutView() {
           <ul className="space-y-4">
             {lines.map(({ item, product }) => {
               const issue = issueBySlug.get(product.slug);
-              const soldOut = issue?.reason === "sold_out";
+              const soldOut = issue ? isRemoved(issue) : false;
               const billableQuantity = !issue
                 ? item.quantity
                 : soldOut
@@ -240,7 +244,11 @@ export default function CheckoutView() {
                   <p className="text-xs text-ink-muted">{product.tagline}</p>
                   {issue && (
                     <p className="mt-0.5 text-xs font-semibold text-red-700">
-                      {soldOut ? "Sold out" : `Only ${issue.available} left`}
+                      {soldOut
+                        ? issue.reason === "unavailable"
+                          ? "No longer available"
+                          : "Sold out"
+                        : `Only ${issue.available} left`}
                     </p>
                   )}
                 </div>

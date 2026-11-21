@@ -1,8 +1,8 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
+import type { CartProduct } from "@/components/cart/CatalogProvider";
 import { MAX_QUANTITY_PER_ITEM } from "@/lib/checkout-config";
-import { products, type Product } from "@/lib/products";
 
 export type CartItem = {
   slug: string;
@@ -11,7 +11,7 @@ export type CartItem = {
 
 export type CartLine = {
   item: CartItem;
-  product: Product;
+  product: CartProduct;
 };
 
 const STORAGE_KEY = "awele-cart";
@@ -105,10 +105,15 @@ export function clearCart() {
   emitChange();
 }
 
-export function resolveCartLines(items: CartItem[]): CartLine[] {
+// Pairs each cart item with its soap from the catalog (see useCatalog). Items
+// whose soap isn't in the catalog at all are dropped.
+export function resolveCartLines(
+  items: CartItem[],
+  catalog: CartProduct[],
+): CartLine[] {
   return items
     .map((item) => {
-      const product = products.find((p) => p.slug === item.slug);
+      const product = catalog.find((p) => p.slug === item.slug);
       return product ? { item, product } : null;
     })
     .filter((line): line is CartLine => line !== null);

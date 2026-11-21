@@ -1,8 +1,12 @@
 import Stripe from "stripe";
 import { NextRequest, NextResponse } from "next/server";
-import { products, type Product } from "@/lib/products";
+import {
+  findProduct,
+  getCatalogFresh,
+  type CatalogProduct,
+} from "@/lib/catalog";
 import { MAX_QUANTITY_PER_ITEM } from "@/lib/checkout-config";
-import { findUnavailable, getInventory, type Unavailable } from "@/lib/inventory";
+import { findUnavailable, getInventory, type Inventory } from "@/lib/inventory";
 import { priceCart, type PricedLine } from "@/lib/pricing";
 import { unavailableMessage } from "@/lib/purchase-limits";
 
@@ -104,12 +108,30 @@ export async function POST(request: NextRequest) {
   const rawItems = Array.isArray(body.items) ? body.items : [];
   const email = typeof body.email === "string" ? body.email.trim() : "";
 
+  // The soaps as they are right now (not the cached copy the shop pages use).
+  let catalog: CatalogProduct[];
+  try {
+    catalog = await getCatalogFresh();
+  } catch (err) {
+    console.error("[create-payment-intent] Could not read the catalog:", err);
+    return NextResponse.json(
+      { error: "Could not start payment. Please try again." },
+      { status: 503 },
+    );
+  }
+
   // One entry per soap: repeated lines for the same soap are added together so
   // the quantity limit and the stock check see the true total.
-  const requested = new Map<string, { product: Product; quantity: number }>();
+  const requested = new Map<
+    string,
+    { product: CatalogProduct; quantity: number }
+  >();
 
   for (const rawItem of rawItems) {
-    const product = products.find((p) => p.slug === rawItem.slug);
+    const product =
+      typeof rawItem.slug === "string"
+        ? findProduct(catalog, rawItem.slug)
+        : undefined;
     const quantity = Number(rawItem.quantity);
     if (!product || !Number.isInteger(quantity) || quantity < 1) {
       continue;
@@ -147,16 +169,17 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Never take payment for soap that is sold out or no longer in stock. This
-  // reads stock fresh (not the cached copy the storefront uses). If the stock
-  // store itself is unreachable we let the order through rather than turn away
-  // paying customers; the failure is logged.
-  let unavailable: Unavailable[] = [];
+  // Never take payment for soap that is hidden, sold out, or no longer in
+  // stock. Stock is read fresh (not the cached copy the storefront uses). If
+  // stock itself can't be read we let the order through rather than turn away
+  // paying customers (hidden soaps are still refused); the failure is logged.
+  let inventory: Inventory = {};
   try {
-    unavailable = findUnavailable(await getInventory(), orderLineItems);
+    inventory = await getInventory(catalog);
   } catch (err) {
     console.error("[create-payment-intent] Could not check stock:", err);
   }
+  const unavailable = findUnavailable(inventory, orderLineItems, catalog);
   if (unavailable.length > 0) {
     return NextResponse.json(
       { error: unavailableMessage(unavailable), unavailable },
